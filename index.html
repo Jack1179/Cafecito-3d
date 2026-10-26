@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Cafecito MR · Finca Explorable 3D &amp; Quest 3 Mixed Reality</title>
+    <title>Cafecito MR · Monitor 3D, Herramientas de Campo &amp; Quest 3</title>
     <meta
       name="description"
-      content="Juego interactivo explorable de Merged Reality y Mixed Reality (compatible con Meta Quest 3, Webcam y PC/Móvil) del Monitor Ambiental Portátil Cafecito (120×65×18 mm)."
+      content="Juego interactivo explorable en Merged Reality y Mixed Reality (Meta Quest 3, Webcam y PC/Móvil): diagnostica con el Monitor Cafecito 120×65×18 mm y trata con Spray y Tijeras de Podar."
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./src/styles.css" />
@@ -28,8 +28,8 @@
         <div class="brand-block">
           <div class="brand-dot"></div>
           <div>
-            <h1 class="brand-title">CAFECITO <span>MR · MAPA 3D</span></h1>
-            <p class="brand-sub">Explora el Cafetal · Monitor 120×65×18 mm</p>
+            <h1 class="brand-title">CAFECITO <span>MR · CAMPO 3D</span></h1>
+            <p class="brand-sub">Monitor 120×65×18 mm + Kit Fitosanitario · Quest 3 Ready</p>
           </div>
         </div>
 
@@ -69,8 +69,8 @@
           <button id="btnModeVR" class="pill-btn" title="Meta Quest 3 Realidad Virtual Inmersiva (Cafetal Completo)">
             🥽 Quest VR
           </button>
-          <button id="btnCadSheet" class="icon-btn" title="Inspección CAD 360° y Hoja Técnica">
-            📐 CAD
+          <button id="btnCadSheet" class="icon-btn" title="Inspección CAD 360° y Controles Quest 3">
+            📐 CAD / Ayuda
           </button>
           <button id="btnMute" class="icon-btn" title="Activar/Silenciar Sonido">
             🔊
@@ -89,22 +89,22 @@
         <button id="btnSwitchCam" class="mini-btn">🔄 Cambiar Cámara</button>
       </div>
 
-      <!-- Fila central: Panel Izquierdo de Telemetría + Radar Minimapa Derecho -->
+      <!-- Fila central: Panel Izquierdo de Telemetría & Kit + Radar Minimapa Derecho -->
       <div class="middle-hud-row">
         <aside id="telemetryPanel" class="side-panel glass-panel">
           <div class="panel-header">
-            <span>📡 Sensor &amp; Exploración</span>
+            <span>📡 Monitor &amp; Kit de Cura</span>
             <button id="btnTogglePlayMode" class="mini-btn highlight">Modo: Cosecha</button>
           </div>
 
           <div class="sensor-grid">
             <div class="sensor-box">
-              <small>Temp Ø12mm</small>
-              <strong id="uiTemp">21.0 °C</strong>
+              <small>Menú Monitor IPS</small>
+              <strong id="uiIpsMode" class="emerald-txt">1.ESCÁNER</strong>
             </div>
             <div class="sensor-box">
-              <small>Humedad Ø12mm</small>
-              <strong id="uiHumidity">68 %</strong>
+              <small>Temp / HR Ø12mm</small>
+              <strong id="uiTempHum">21.0°C · 68%</strong>
             </div>
             <div class="sensor-box">
               <small>Distancia Objetivo</small>
@@ -119,14 +119,15 @@
           <div class="diagnosis-card" id="uiDiagnosisCard">
             <div class="diag-title" id="uiDiagTitle">Camina hacia una mata o mesa</div>
             <p class="diag-desc" id="uiDiagDesc">
-              Usa <strong>WASD</strong> o el <strong>Joystick</strong> para caminar por los senderos y arrastra para mirar 360°. Acércate (&lt; 3m) para escanear con el lente Ø8mm.
+              1) Con el <strong>📱 Monitor</strong> en el menú <strong>[1.ESCÁNER]</strong>, escanea la mata.<br />
+              2) Equipa la herramienta física (<strong>🧴 Spray</strong> o <strong>✂️ Tijeras de Podar</strong>) para tratarla.
             </p>
           </div>
 
-          <!-- Selector rápido de protocolo de tratamiento -->
+          <!-- Selector de Herramienta Física de Campo (Independiente del Monitor) -->
           <div class="protocol-section">
-            <div class="section-caption">Protocolo Fitosanitario (▲/▼ + ●):</div>
-            <div id="protocolList" class="protocol-list"></div>
+            <div class="section-caption">🧰 Herramientas de Curación (Mano Der. en Quest 3):</div>
+            <div id="toolbeltList" class="protocol-list"></div>
           </div>
 
           <!-- Controles Clima & Laboratorio Libre -->
@@ -176,7 +177,7 @@
           <div class="modal-badge">¡COSECHA PROTEGIDA!</div>
           <h2 id="waveModalTitle">Ronda #1 Completada</h2>
           <p id="waveModalSummary">
-            Recorriste el cafetal y erradicaste todos los focos fitosanitarios.
+            Diagnosticaste con el monitor y sanaste todo el cafetal usando tus herramientas fitosanitarias.
           </p>
           <div class="modal-actions">
             <button id="btnNextWave" class="primary-cta">Siguiente Ronda de Cosecha →</button>
@@ -184,13 +185,13 @@
         </div>
       </div>
 
-      <!-- Modal de Ficha Técnica CAD (Diseño meta ia.jpg + Cota 360°) -->
+      <!-- Modal de Ficha Técnica CAD y Guía de Controles Meta Quest 3 -->
       <div id="cadModal" class="modal-backdrop hidden">
         <div class="modal-card cad-modal-card glass-panel">
           <div class="modal-top">
             <div>
-              <div class="modal-badge">ESPECIFICACIONES DE HARDWARE &amp; QUEST 3</div>
-              <h2>Handheld Environmental Monitor · Cafecito</h2>
+              <div class="modal-badge">HARDWARE CAD + CONTROLES META QUEST 3</div>
+              <h2>Monitor Cafecito (120×65×18 mm) + Herramientas de Campo</h2>
             </div>
             <button id="btnCloseCadModal" class="icon-btn">✕</button>
           </div>
@@ -201,13 +202,17 @@
               class="cad-blueprint-img"
             />
             <div class="cad-specs-list">
-              <p><strong>Dimensiones:</strong> 120 mm (Al) × 65 mm (An) × 18 mm (Prof) · Peso: 85 g</p>
-              <p><strong>Pantalla:</strong> IPS cuadrada 50 mm × 50 mm con visor IA, brújula de rastreo y telemetría</p>
-              <p><strong>Sensores Traseros:</strong> Cámara superior Ø8 mm + Rejilla inferior T/HR Ø12 mm</p>
-              <p><strong>Meta Quest 3:</strong> Usa <em>🥽 Quest 3 MR</em> para Passthrough a color o <em>🥽 Quest VR</em>. Stick Izq camina, Stick Der gira/navega menú, Gatillo Der escanea y Botón A/Grip aplica cura.</p>
+              <p><strong>📱 Mano Izquierda en Quest 3 (Monitor 120×65×18 mm):</strong></p>
+              <p>• <strong>Botones X / Y:</strong> Cambiar menú IPS (<em>1.ESCÁNER ↔ 2.CLIMA ↔ 3.UV·IR ↔ 4.FICHA</em>).<br />
+                 • <strong>Gatillo Izquierdo:</strong> Escanear mata (<strong>requiere estar en 1.ESCÁNER</strong>).<br />
+                 • <strong>Grip Izquierdo:</strong> Girar monitor 180° (Cámara Ø8mm y Rejilla Ø12mm).</p>
+              <p><strong>🧴✂️ Mano Derecha en Quest 3 (Herramienta de Cura):</strong></p>
+              <p>• <strong>Botones A / B:</strong> Cambiar entre <em>🧴 Spray (3 medicinas)</em>, <em>✂️ Tijeras de Podar</em> y <em>🏷️ Sello Sano</em>.<br />
+                 • <strong>Gatillo Derecho:</strong> Rociar Spray o Cortar con Tijeras de Podar.</p>
+              <p><strong>🚶 Movimiento Quest 3:</strong> Stick Izq = Caminar · Stick Der (Izq/Der) = Girar 30°.</p>
               <div class="cad-modal-btns">
                 <button id="btnToggle3DCadLabels" class="pill-btn accent-mr">
-                  📐 Alternar Cotas 3D sobre el Aparato
+                  📐 Alternar Cotas 3D sobre el Monitor
                 </button>
               </div>
             </div>
@@ -215,10 +220,10 @@
         </div>
       </div>
 
-      <!-- Dock Inferior: Joystick de Caminata + Controles Táctiles del Aparato -->
+      <!-- Dock Inferior: Joystick + Cinturón Rápido (Monitor vs Spray vs Tijeras) -->
       <footer class="bottom-dock">
         <div class="walk-and-controls">
-          <!-- Joystick Virtual para caminar en móvil / pantalla táctil / mouse -->
+          <!-- Joystick Virtual para caminar -->
           <div id="joystickZone" class="joystick-zone glass-panel" title="Arrastra para caminar por el mapa (o usa WASD)">
             <div class="joy-ring">
               <div id="joystickKnob" class="joy-knob"></div>
@@ -227,28 +232,37 @@
           </div>
 
           <div class="center-dock-stack">
-            <div class="walk-hint-pill glass-panel hide-xs">
-              🚶 <strong>WASD</strong> Caminar · <strong>Shift</strong> Correr · <strong>Arrastrar Mouse</strong> Mirar 360° · <strong>Q/E</strong> Girar · <strong>Clic en Radar</strong> Viaje rápido
+            <!-- Cinturón de selección rápida: Monitor (Detectar) vs Herramientas (Curar) -->
+            <div class="quick-slots-bar glass-panel">
+              <button id="slotMonitor" class="slot-btn active" title="Equipar Monitor Ambiental (Tecla 1)">
+                1. 📱 Monitor
+              </button>
+              <button id="slotSprayer" class="slot-btn" title="Equipar Atomizador / Spray de Medicina — pulsa de nuevo para cambiar fórmula (Tecla 2)">
+                2. 🧴 Spray Medicina
+              </button>
+              <button id="slotShears" class="slot-btn" title="Equipar Tijeras de Podar para Antracnosis (Tecla 3)">
+                3. ✂️ Tijeras Podar
+              </button>
+              <button id="slotStamp" class="slot-btn" title="Equipar Sello para Certificar Café Sano (Tecla 4)">
+                4. 🏷️ Sello Sano
+              </button>
             </div>
 
+            <!-- Barra contextual de acciones según lo que tengas en mano -->
             <div class="device-controls-bar glass-panel">
-              <button id="btnScanHold" class="action-btn scan-cta" title="Mantén presionado para escanear con la cámara Ø8mm (Espacio)">
-                🔍 Escáner Ø8mm
+              <button id="btnPrimaryAction" class="action-btn scan-cta" title="Escanear con el Monitor (en 1.ESCÁNER) o usar la Herramienta equipada (Espacio)">
+                🔍 Escanear (Menú 1)
               </button>
-              <button id="btnDevUp" class="hw-btn" title="Botón Arriba del Monitor (Flecha Arriba)">▲</button>
-              <button id="btnDevSelect" class="action-btn apply-cta" title="Botón Seleccionar / Aplicar Protocolo (Enter)">
-                ● Aplicar / OK
+              <button id="btnDevUp" class="hw-btn" title="Menú Anterior ▲ del Monitor (Flecha Arriba)">▲ Menú</button>
+              <button id="btnDevDown" class="hw-btn" title="Menú Siguiente ▼ del Monitor (Flecha Abajo)">▼ Menú</button>
+              <button id="btnCycleFormula" class="hw-btn wide hidden" title="Cambiar medicina del Spray (Azul Roya / Rojo Broca / Dorado NPK)">
+                🧪 Cambiar Medicina
               </button>
-              <button id="btnDevDown" class="hw-btn" title="Botón Abajo del Monitor (Flecha Abajo)">▼</button>
-
-              <button id="btnNextNearest" class="hw-btn wide" title="Orientar vista hacia la mata pendiente más cercana (Tecla R)">
+              <button id="btnNextNearest" class="hw-btn wide" title="Orientar y caminar hacia la mata pendiente más cercana (Tecla R)">
                 🧭 Buscar Mata
               </button>
-              <button id="btnFlipDevice" class="hw-btn wide" title="Girar el dispositivo 180° para ver la Cámara Ø8mm y Rejilla Ø12mm (Tecla F)">
+              <button id="btnFlipDevice" class="hw-btn wide hide-xs" title="Girar el monitor 180° para ver Lente Ø8mm y Rejilla Ø12mm (Tecla F)">
                 🔄 Reverso
-              </button>
-              <button id="btnFanWind" class="hw-btn wide hide-xs" title="Generar brisa humana para ventilar humedad y esporas (Tecla V)">
-                💨 Ventilar
               </button>
             </div>
           </div>

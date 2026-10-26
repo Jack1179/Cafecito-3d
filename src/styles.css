@@ -542,15 +542,48 @@ button {
   margin-left: auto;
 }
 
-.walk-hint-pill {
-  padding: 5px 14px;
-  font-size: 0.72rem;
-  color: #cbd5e1;
-  border-radius: 999px;
+.emerald-txt {
+  color: var(--emerald-bright) !important;
 }
 
-.walk-hint-pill strong {
-  color: var(--emerald-bright);
+.amber-txt {
+  color: #fbbf24 !important;
+}
+
+.quick-slots-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.slot-btn {
+  background: rgba(15, 29, 44, 0.85);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  padding: 6px 12px;
+  border-radius: 9px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.slot-btn:hover {
+  border-color: var(--sky);
+  color: #ffffff;
+}
+
+.slot-btn.active {
+  background: linear-gradient(135deg, #34d399, #059669);
+  color: #03150e;
+  border-color: #6ee7b7;
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.45);
+}
+
+.warn-cta {
+  background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+  color: #0f172a !important;
 }
 
 .device-controls-bar {

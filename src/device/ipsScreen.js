@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { DISEASES, TREATMENTS } from '../game/diseases.js';
 
 export const SCREEN_MODES = [
-  { id: 'optical', short: 'ÓPTICA', title: 'CÁMARA IA Ø8mm' },
-  { id: 'climate', short: 'CLIMA', title: 'SENSOR Ø12mm T/HR' },
-  { id: 'uv', short: 'UV·IR', title: 'ESPECTRO FOLIAR' },
-  { id: 'treat', short: 'CURAR', title: 'PROTOCOLO FITO' }
+  { id: 'optical', short: '1.ESCÁNER', title: 'CÁMARA IA Ø8mm' },
+  { id: 'climate', short: '2.CLIMA', title: 'SENSOR Ø12mm T/HR' },
+  { id: 'uv', short: '3.UV·IR', title: 'ESPECTRO FOLIAR' },
+  { id: 'report', short: '4.FICHA', title: 'GUÍA HERRAMIENTA' }
 ];
 
 /**
@@ -217,8 +217,8 @@ export class IPSScreenRenderer {
       this.drawCameraViewport(ctx, state, mode.id === 'uv', now);
     } else if (mode.id === 'climate') {
       this.drawClimateMode(ctx, state);
-    } else if (mode.id === 'treat') {
-      this.drawTreatmentMode(ctx, state);
+    } else if (mode.id === 'report') {
+      this.drawReportMode(ctx, state);
     }
 
     // Barra inferior de guía de botones físicos (▲ ● ▼ + Side)
@@ -231,11 +231,12 @@ export class IPSScreenRenderer {
     ctx.stroke();
 
     ctx.font = 'bold 13px ui-monospace, monospace';
-    ctx.fillStyle = '#94a3b8';
-    if (mode.id === 'treat') {
-      ctx.fillText('▲▼ ELEGIR PROTOCOLO   ● APLICAR   [LAT] ESCANEAR', 16, H - 21);
+    if (mode.id === 'optical') {
+      ctx.fillStyle = '#34d399';
+      ctx.fillText('▲▼ MENÚS (X/Y)   ●/[LAT] ESCANEAR AQUÍ   CURA = HERRAMIENTA', 14, H - 21);
     } else {
-      ctx.fillText('▲▼ CAMBIAR MODO   ● ACCIÓN/CURAR   [LAT] ESCÁNER', 16, H - 21);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillText('▲▼ MENÚS (X/Y)   [PARA ESCANEAR VE A 1.ESCÁNER]', 16, H - 21);
     }
 
     // Banner emergente de feedback
@@ -430,26 +431,35 @@ export class IPSScreenRenderer {
       ctx.font = '13px system-ui, sans-serif';
       ctx.fillText('Sigue la brújula verde (arriba der.) y acércate < 3m', 26, py + 73);
     } else if (!targetStation.scanned) {
-      const pct = Math.round(scanProgress * 100);
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 17px system-ui, sans-serif';
-      ctx.fillText(
-        isScanning ? `Analizando tejido vegetal... ${pct}%` : 'Objetivo a tiro — Pulsa Escáner',
-        26,
-        py + 52
-      );
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '13px system-ui, sans-serif';
-      ctx.fillText('Mantén Botón Lateral, Espacio o Gatillo Quest 3', 26, py + 73);
+      if (isUV) {
+        ctx.fillStyle = '#e879f9';
+        ctx.font = 'bold 16px system-ui, sans-serif';
+        ctx.fillText('Vista espectral UV — Cambia a [1.ESCÁNER]', 26, py + 52);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.font = '13px system-ui, sans-serif';
+        ctx.fillText('Pulsa ▲/▼ (o X/Y en Quest 3) para ir al menú de escaneo', 26, py + 73);
+      } else {
+        const pct = Math.round(scanProgress * 100);
+        ctx.fillStyle = '#38bdf8';
+        ctx.font = 'bold 17px system-ui, sans-serif';
+        ctx.fillText(
+          isScanning ? `Analizando tejido vegetal... ${pct}%` : 'Menú Escáner listo — Mantén Escáner',
+          26,
+          py + 52
+        );
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '13px system-ui, sans-serif';
+        ctx.fillText('Mantén Botón Lateral, Espacio o Gatillo Izq. Quest 3', 26, py + 73);
+      }
     } else {
       const dis = DISEASES[targetStation.diseaseId];
       ctx.fillStyle = dis.accentColor;
       ctx.font = 'bold 18px system-ui, sans-serif';
       ctx.fillText(`${dis.name} [${dis.code}]`, 26, py + 51);
-      ctx.fillStyle = '#cbd5e1';
-      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 13px system-ui, sans-serif';
       const rec = TREATMENTS.find((t) => t.id === dis.requiredTreatment);
-      ctx.fillText(`Acción: ${rec ? rec.name : dis.recommendation}`, 26, py + 73);
+      ctx.fillText(`EQUIPA Y USA: ${rec ? rec.name : dis.recommendation}`, 26, py + 73);
     }
   }
 
@@ -543,53 +553,73 @@ export class IPSScreenRenderer {
     ctx.fillText(riskMsg, 30, 428);
   }
 
-  drawTreatmentMode(ctx, state) {
+  drawReportMode(ctx, state) {
     const W = this.size;
-    const { selectedTreatmentIndex = 0, targetStation } = state;
+    const { targetStation } = state;
 
+    ctx.fillStyle = '#0e1e2e';
+    this.roundRect(ctx, 18, 98, W - 36, 118, 12, true, false);
+
+    if (!targetStation || !targetStation.scanned) {
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 18px system-ui, sans-serif';
+      ctx.fillText(
+        targetStation ? `${targetStation.name}: SIN ESCANEAR` : 'Sin estación diagnosticada en mira',
+        32,
+        134
+      );
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '14px system-ui, sans-serif';
+      ctx.fillText('1) Ve a la pestaña [1.ESCÁNER] con ▲/▼ (o X/Y).', 32, 166);
+      ctx.fillText('2) Escanea la mata y luego usa tu herramienta física.', 32, 192);
+    } else {
+      const dis = DISEASES[targetStation.diseaseId];
+      const reqTool = TREATMENTS.find((t) => t.id === dis.requiredTreatment);
+
+      ctx.fillStyle = dis.accentColor;
+      ctx.font = 'bold 20px system-ui, sans-serif';
+      ctx.fillText(`${dis.name} (${Math.round(targetStation.health)}% vigor)`, 30, 130);
+
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillText(dis.symptoms.slice(0, 58), 30, 156);
+
+      ctx.fillStyle = '#052e16';
+      this.roundRect(ctx, 28, 168, W - 56, 36, 8, true, false);
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 15px system-ui, sans-serif';
+      ctx.fillText(`HERRAMIENTA REQUERIDA: ${reqTool ? reqTool.name : ''}`, 40, 192);
+    }
+
+    // Guía rápida de referencia de herramientas físicas
     ctx.fillStyle = '#94a3b8';
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    const targetLabel = targetStation
-      ? `DESTINO: ${targetStation.name} ${targetStation.scanned ? '(' + DISEASES[targetStation.diseaseId].shortName + ')' : '(Sin escanear)'}`
-      : 'DESTINO: Apunta a una mata o lote de café';
-    ctx.fillText(targetLabel, 20, 112);
+    ctx.font = 'bold 13px ui-monospace, monospace';
+    ctx.fillText('GUÍA DE HERRAMIENTAS DE CAMPO (NO DESDE EL MONITOR):', 22, 240);
 
     TREATMENTS.forEach((tr, idx) => {
-      const y = 124 + idx * 64;
-      const isSelected = idx === selectedTreatmentIndex;
-      const isRecommended =
+      const y = 250 + idx * 39;
+      const isMatch =
         targetStation &&
         targetStation.scanned &&
         DISEASES[targetStation.diseaseId].requiredTreatment === tr.id;
 
-      ctx.fillStyle = isSelected ? '#153042' : '#0c1926';
-      this.roundRect(ctx, 18, y, W - 36, 56, 10, true, false);
-
-      if (isSelected) {
-        ctx.strokeStyle = tr.color;
-        ctx.lineWidth = 2.5;
-        this.roundRect(ctx, 18, y, W - 36, 56, 10, false, true);
+      ctx.fillStyle = isMatch ? '#13322b' : '#0b1824';
+      this.roundRect(ctx, 18, y, W - 36, 34, 8, true, false);
+      if (isMatch) {
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 2;
+        this.roundRect(ctx, 18, y, W - 36, 34, 8, false, true);
       }
 
       ctx.fillStyle = tr.color;
-      ctx.font = 'bold 20px system-ui, sans-serif';
-      ctx.fillText(tr.icon, 32, y + 35);
-
-      ctx.fillStyle = isSelected ? '#ffffff' : '#cbd5e1';
-      ctx.font = 'bold 16px system-ui, sans-serif';
-      ctx.fillText(tr.name, 62, y + 25);
+      ctx.font = 'bold 14px system-ui, sans-serif';
+      ctx.fillText(tr.name, 28, y + 22);
 
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '12px system-ui, sans-serif';
-      ctx.fillText(tr.description.slice(0, 56), 62, y + 44);
-
-      if (isRecommended) {
-        ctx.fillStyle = '#10b981';
-        this.roundRect(ctx, W - 122, y + 8, 92, 20, 5, true, false);
-        ctx.fillStyle = '#04130d';
-        ctx.font = 'bold 11px ui-monospace, monospace';
-        ctx.fillText('SUGERIDO IA', W - 114, y + 22);
-      }
+      ctx.font = '12px ui-monospace, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`→ ${tr.cures.toUpperCase()}`, W - 28, y + 22);
+      ctx.textAlign = 'left';
     });
   }
 

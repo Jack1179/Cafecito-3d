@@ -759,7 +759,42 @@ export class TreatmentFXSystem {
     const points = new THREE.Points(geo, mat);
     this.scene.add(points);
 
-    this.bursts.push({ points, velocities, age: 0, maxAge: 1.05 });
+    this.bursts.push({ points, velocities, age: 0, maxAge: 1.05, gravity: 0.18 });
+  }
+
+  /** Hojas y ramitas necróticas cortadas cayendo por gravedad al usar las Tijeras de Podar */
+  emitPruningClippings(destination) {
+    const count = 48;
+    const positions = new Float32Array(count * 3);
+    const velocities = [];
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = destination.x + (Math.random() - 0.5) * 0.28;
+      positions[i * 3 + 1] = destination.y + (Math.random() - 0.3) * 0.25;
+      positions[i * 3 + 2] = destination.z + (Math.random() - 0.5) * 0.28;
+
+      velocities.push(
+        new THREE.Vector3(
+          (Math.random() - 0.5) * 1.3,
+          0.6 + Math.random() * 1.1,
+          (Math.random() - 0.5) * 1.3
+        )
+      );
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0x4ade80,
+      size: 0.028,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false
+    });
+    const points = new THREE.Points(geo, mat);
+    this.scene.add(points);
+
+    this.bursts.push({ points, velocities, age: 0, maxAge: 1.15, gravity: -3.4 });
   }
 
   update(dt) {
@@ -775,9 +810,10 @@ export class TreatmentFXSystem {
       }
 
       const attr = b.points.geometry.attributes.position;
+      const grav = typeof b.gravity === 'number' ? b.gravity : 0.18;
       for (let p = 0; p < b.velocities.length; p++) {
         const v = b.velocities[p];
-        v.y += 0.18 * dt;
+        v.y += grav * dt;
         attr.setXYZ(
           p,
           attr.getX(p) + v.x * dt,

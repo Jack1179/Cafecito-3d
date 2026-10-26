@@ -154,4 +154,60 @@ export class SoundEngine {
       osc.stop(now + 0.28);
     }
   }
+
+  /** Sonido metálico de corte de las tijeras de podar bypass */
+  playShearsSnip(success = true) {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    // Chasquido metálico agudo de hojas de acero cerrándose
+    [2400, 3450].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.03);
+      osc.frequency.exponentialRampToValueAtTime(680, now + idx * 0.03 + 0.065);
+      gain.gain.setValueAtTime(0.15, now + idx * 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.03 + 0.075);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + idx * 0.03);
+      osc.stop(now + idx * 0.03 + 0.08);
+    });
+
+    if (success) {
+      [587.33, 783.99, 1046.5].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + 0.09 + i * 0.055);
+        g.gain.setValueAtTime(0.085, now + 0.09 + i * 0.055);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.34 + i * 0.055);
+        osc.connect(g);
+        g.connect(ctx.destination);
+        osc.start(now + 0.09 + i * 0.055);
+        osc.stop(now + 0.36 + i * 0.055);
+      });
+    }
+  }
+
+  /** Aviso corto cuando se intenta escanear sin estar en el menú [1] ESCÁNER IA */
+  playModeWarning() {
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    [340, 270].forEach((f, i) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(f, now + i * 0.08);
+      g.gain.setValueAtTime(0.06, now + i * 0.08);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.065);
+      osc.connect(g);
+      g.connect(ctx.destination);
+      osc.start(now + i * 0.08);
+      osc.stop(now + i * 0.08 + 0.07);
+    });
+  }
 }
