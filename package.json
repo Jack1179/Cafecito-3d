@@ -1,0 +1,21 @@
+{
+  "name": "cafecito-3d-mr",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Juego interactivo 3D de Merged & Mixed Reality para el Monitor Ambiental Portátil del Proyecto Cafecito: detección y tratamiento de enfermedades del café.",
+  "scripts": {
+    "predev": "node scripts/copy-wasm.mjs",
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "prebuild": "node scripts/copy-wasm.mjs",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}
