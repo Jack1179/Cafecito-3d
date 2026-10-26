@@ -4,13 +4,14 @@ import { GameDirector } from './game/gameState.js';
 import { SoundEngine } from './audio/soundEngine.js';
 import { IPSScreenRenderer, SCREEN_MODES } from './device/ipsScreen.js';
 import { HandheldMonitor3D } from './device/monitorModel.js';
+import { AgroTools3D } from './device/agroTools.js';
 import { CoffeeStation3D, TreatmentFXSystem } from './world/coffeePlant.js';
 import { CoffeeEnvironment, getTerrainHeight } from './world/environment.js';
 import { MergedRealityEngine } from './mr/mergedReality.js';
 import { WebXRManager } from './mr/webxrManager.js';
 
 // ============================================================================
-// 1. ESCENA THREE.JS, PLAYER RIG CAMINABLE Y MONITOR PORTÁTIL 3D
+// 1. ESCENA THREE.JS, PLAYER RIG CAMINABLE, MONITOR 3D Y HERRAMIENTAS DE CURA
 // ============================================================================
 const canvas = document.getElementById('sceneCanvas');
 const videoEl = document.getElementById('mrVideo');
@@ -63,16 +64,7 @@ const lensRenderTarget = new THREE.WebGLRenderTarget(128, 128, {
 const sound = new SoundEngine();
 const ipsScreen = new IPSScreenRenderer();
 const monitor = new HandheldMonitor3D(ipsScreen.texture);
-
-// En pantalla (PC/Móvil/Webcam) el monitor va sujeto en la mano derecha frente a la cámara
-function attachMonitorToDesktopHand() {
-  if (monitor.root.parent) monitor.root.parent.remove(monitor.root);
-  camera.add(monitor.root);
-  monitor.root.scale.setScalar(1.68);
-  monitor.root.position.set(0.145, -0.055, -0.44);
-  monitor.root.rotation.set(0.03, -0.14, 0);
-}
-attachMonitorToDesktopHand();
+const agroTools = new AgroTools3D();
 
 const environment = new CoffeeEnvironment(scene);
 const fxSystem = new TreatmentFXSystem(scene);
@@ -87,20 +79,22 @@ const stations = STATIONS_CONFIG.map((cfg) => {
 });
 
 // ============================================================================
-// 2. ESTADO DE EXPLORACIÓN, LOCOMOCIÓN Y DISPOSITIVO
+// 2. ESTADO DE EXPLORACIÓN, CONGRUENCIA DE MENÚ ESCÁNER Y HERRAMIENTAS FÍSICAS
 // ============================================================================
 const MAX_SCAN_RANGE_M = 3.35;
 
 const appState = {
   mrMode: '3d', // '3d' | 'webcam' | 'webxr-ar' | 'webxr-vr'
   mrBlend: 0.42,
-  screenModeIndex: 0,
-  selectedTreatmentIndex: 0,
-  activeStation: null, // Estación actualmente enfocada y a rango (< 3.35 m)
-  playerYaw: 0.12, // Mirando inicialmente hacia Mata #1 y el Sendero Central
+  equippedSlot: 'monitor', // 'monitor' | 'tool' (en Quest 3 tienes AMBOS simultáneamente: mano izq = monitor, mano der = herramienta)
+  screenModeIndex: 0, // 0 = 1.ESCÁNER (único menú donde el monitor puede escanear), 1 = 2.CLIMA, 2 = 3.UV·IR, 3 = 4.FICHA
+  selectedTreatmentIndex: 0, // 0..2 = Sprays de medicina, 3 = Tijeras de Podar, 4 = Sello Café Sano
+  lastSprayIndex: 0, // Recuerda la última medicina cargada en el Spray (0, 1 o 2)
+  activeStation: null,
+  playerYaw: 0.12,
   playerPitch: -0.06,
   walkBobPhase: 0,
-  autoWalkTarget: null, // Destino opcional al hacer clic en una mata lejana o en el Radar
+  autoWalkTarget: null,
   handAimOffset: new THREE.Vector2(0, 0),
   isScanning: false,
   scanProgress: 0,
@@ -109,6 +103,49 @@ const appState = {
 
 camera.rotation.y = appState.playerYaw;
 camera.rotation.x = appState.playerPitch;
+
+function attachHandsToDesktopCamera() {
+  if (monitor.root.parent) monitor.root.parent.remove(monitor.root);
+  if (agroTools.root.parent) agroTools.root.parent.remove(agroTools.root);
+
+  camera.add(monitor.root);
+  camera.add(agroTools.root);
+
+  agroTools.setTreatmentIndex(appState.selectedTreatmentIndex, false);
+  updateDesktopHandLayout();
+}
+
+function updateDesktopHandLayout() {
+  if (xrManager && xrManager.session) return;
+  if (appState.equippedSlot === 'monitor') {
+    monitor.root.scale.setScalar(1.68);
+    agroTools.root.visible = false;
+  } else {
+    // Monitor pasa a la mano izquierda como referencia y la Herramienta Física sube en la mano derecha
+    monitor.root.scale.setScalar(1.18);
+    agroTools.root.visible = true;
+    agroTools.root.scale.setScalar(1.38);
+  }
+}
+
+function attachHandsToQuestControllers(leftCtrl, rightCtrl) {
+  if (monitor.root.parent) monitor.root.parent.remove(monitor.root);
+  if (agroTools.root.parent) agroTools.root.parent.remove(agroTools.root);
+
+  // Mano Izquierda: Monitor Ambiental 120×65×18 mm a escala física real 1:1
+  leftCtrl.add(monitor.root);
+  monitor.root.scale.setScalar(1.0);
+  monitor.root.position.set(0, 0.015, -0.065);
+  monitor.root.rotation.set(-0.32, 0.08, 0);
+
+  // Mano Derecha: Herramienta Física (Spray / Tijeras de Podar / Sello) a escala 1:1
+  rightCtrl.add(agroTools.root);
+  agroTools.root.visible = true;
+  agroTools.root.scale.setScalar(1.0);
+  agroTools.root.position.set(0, 0.01, -0.055);
+  agroTools.root.rotation.set(-0.22, 0, 0);
+  agroTools.setTreatmentIndex(appState.selectedTreatmentIndex, true);
+}
 
 let toastTimer = null;
 function showToast(msg, borderHex = '#34d399', duration = 3200) {
@@ -121,24 +158,41 @@ function showToast(msg, borderHex = '#34d399', duration = 3200) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), duration);
 }
 
+function isMonitorInScanMenu() {
+  return SCREEN_MODES[appState.screenModeIndex].id === 'optical';
+}
+
+function warnMustBeInScanMenu() {
+  appState.isScanning = false;
+  sound.playModeWarning();
+  const curName = SCREEN_MODES[appState.screenModeIndex].short;
+  ipsScreen.showBanner('VE AL MENÚ [1.ESCÁNER]', '#f59e0b', 1900);
+  showToast(
+    `Estás en [${curName}]. Para escanear debes cambiar al menú [1.ESCÁNER] usando ▲/▼ (o botones X/Y en Quest 3).`,
+    '#f59e0b',
+    3600
+  );
+  if (xrManager?.session) {
+    xrManager.pulseHaptic('left', 0.65, 90);
+  }
+}
+
 const game = new GameDirector(stations, {
   onLog: (msg, level) => {
     showToast(msg, level === 'warn' ? '#f97316' : '#38bdf8', 3600);
   },
   onDiagnosis: (station, dis) => {
     sound.playDiagnosisComplete(dis.id === 'healthy');
-    ipsScreen.showBanner(`DIAGNÓSTICO: ${dis.shortName}`, dis.accentColor, 2000);
+    ipsScreen.showBanner(`DIAGNÓSTICO: ${dis.shortName}`, dis.accentColor, 2100);
 
-    const recIdx = TREATMENTS.findIndex((t) => t.id === dis.requiredTreatment);
-    if (recIdx >= 0) {
-      appState.selectedTreatmentIndex = recIdx;
-      renderProtocolButtons();
-    }
+    const recTool = TREATMENTS.find((t) => t.id === dis.requiredTreatment);
     updateDiagnosisPanel();
+    renderToolbeltUI();
+
     showToast(
-      `${station.name}: ${dis.name}. Pulsa "● Aplicar" (Enter / Botón A en Quest 3) para ${TREATMENTS[appState.selectedTreatmentIndex].shortLabel}.`,
+      `${station.name}: ${dis.name}. Equipa y usa ${recTool ? recTool.name : 'tu herramienta'} (Mano Derecha en Quest 3 o teclas 2/3/4).`,
       dis.accentColor,
-      4000
+      4400
     );
   },
   onWaveComplete: (wave, score, savedKg) => {
@@ -146,7 +200,7 @@ const game = new GameDirector(stations, {
     const modal = document.getElementById('waveModal');
     document.getElementById('waveModalTitle').textContent = `¡Ronda #${wave} Completada!`;
     document.getElementById('waveModalSummary').textContent =
-      `Exploraste toda la finca y sanaste todos los brotes fitosanitarios. Puntaje: ${score} pts · Cosecha salvada: ${savedKg.toFixed(1)} kg.`;
+      `Diagnosticaste con el Monitor y sanaste todo el cafetal usando Spray y Tijeras de Podar. Puntaje: ${score} pts · Cosecha salvada: ${savedKg.toFixed(1)} kg.`;
     modal.classList.remove('hidden');
   }
 });
@@ -154,13 +208,12 @@ const game = new GameDirector(stations, {
 game.startWave(1);
 
 // ============================================================================
-// 3. MOTORES MERGED REALITY (WEBCAM + MANOS) Y META QUEST 3 (MR / VR)
+// 3. MOTORES MERGED REALITY (WEBCAM + MANOS) Y META QUEST 3 (2 MANOS: MONITOR + HERRAMIENTA)
 // ============================================================================
 const mrEngine = new MergedRealityEngine(videoEl, handOverlay);
 mrEngine.resizeOverlay(window.innerWidth, window.innerHeight);
 
 const raycaster = new THREE.Raycaster();
-const tmpMatrix = new THREE.Matrix4();
 
 const xrManager = new WebXRManager(renderer, playerRig, hudRoot, {
   onSupportChecked: ({ ar, vr }) => {
@@ -173,64 +226,56 @@ const xrManager = new WebXRManager(renderer, playerRig, hudRoot, {
       btnVR.title = 'Ábrelo en Meta Quest 3 Browser para VR Inmersiva';
     }
   },
-  onSessionStarted: (sessionMode, rightCtrl) => {
+  onHandsUpdated: (leftCtrl, rightCtrl) => {
+    if (xrManager.session) {
+      attachHandsToQuestControllers(leftCtrl, rightCtrl);
+    }
+  },
+  onSessionStarted: (sessionMode, leftCtrl, rightCtrl) => {
     appState.mrMode = sessionMode === 'immersive-vr' ? 'webxr-vr' : 'webxr-ar';
-
-    // En Quest 3 el casco maneja la altura física local-floor; acoplar monitor 1:1 al mando derecho
     camera.position.set(0, 0, 0);
-    if (monitor.root.parent) monitor.root.parent.remove(monitor.root);
-    rightCtrl.add(monitor.root);
-    monitor.root.scale.setScalar(1.0); // Tamaño físico real 120×65×18 mm
-    monitor.root.position.set(0, 0.015, -0.065);
-    monitor.root.rotation.set(-0.32, 0, 0);
 
+    attachHandsToQuestControllers(leftCtrl, rightCtrl);
     environment.setRealityMode(appState.mrMode);
     updateModeButtonsUI();
+
     showToast(
-      sessionMode === 'immersive-ar'
-        ? 'Meta Quest 3 Passthrough MR activo: camina con tu cuerpo o con el Stick Izquierdo.'
-        : 'Meta Quest 3 VR Cafetal activo: usa Stick Izquierdo para caminar y Gatillo Derecho para escanear.',
+      'Quest 3 listo · Mano Izq = Monitor (X/Y: Menús · Gatillo Izq: Escanear en Menú 1) | Mano Der = Spray/Tijeras (A/B: Cambiar · Gatillo Der: Usar).',
       '#34d399',
-      4500
+      5200
     );
   },
   onSessionEnded: () => {
     camera.position.set(0, EYE_HEIGHT, 0);
     camera.rotation.set(appState.playerPitch, appState.playerYaw, 0, 'YXZ');
-    attachMonitorToDesktopHand();
+    attachHandsToDesktopCamera();
     switchToMode('3d');
   },
-  onTriggerDown: () => {
-    pointerHoldingScan = true;
-    appState.isScanning = true;
-    monitor.triggerButtonPress('side');
-    sound.playButtonClick('side');
-  },
-  onTriggerUp: () => {
-    pointerHoldingScan = false;
-    appState.isScanning = false;
-  },
-  onLeftLaserClick: (leftCtrl) => {
-    // Apuntar con el rayo láser izquierdo de Quest 3 a los botones 3D del monitor en la mano derecha
-    tmpMatrix.identity().extractRotation(leftCtrl.matrixWorld);
-    raycaster.ray.origin.setFromMatrixPosition(leftCtrl.matrixWorld);
-    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tmpMatrix);
-    const hits = raycaster.intersectObjects(monitor.interactiveMeshes, false);
-    if (hits.length > 0) {
-      handleDeviceButton(hits[0].object.userData.buttonId, hits[0].uv);
-    } else {
-      handleDeviceButton('select');
-    }
-  },
-  onNavUp: () => handleDeviceButton('up'),
-  onNavDown: () => handleDeviceButton('down'),
-  onSelectAction: () => handleDeviceButton('select'),
-  onFlipDevice: () => {
+  onMonitorMenuNext: () => cycleMonitorMenu(1),
+  onMonitorMenuPrev: () => cycleMonitorMenu(-1),
+  onFlipMonitor: () => {
     monitor.flipBackView();
     sound.playButtonClick('nav');
   },
-  onVentilate: () => triggerHumanVentilationGust(1.1)
+  onNextTool: () => selectToolByIndex((appState.selectedTreatmentIndex + 1) % TREATMENTS.length, false),
+  onPrevTool: () =>
+    selectToolByIndex(
+      (appState.selectedTreatmentIndex - 1 + TREATMENTS.length) % TREATMENTS.length,
+      false
+    ),
+  onUseActiveTool: () => usePhysicalTool(),
+  onVentilate: () => triggerHumanVentilationGust(1.1),
+  onScreenArTap: () => {
+    // Respaldo táctil para Android AR sin mandos
+    if (appState.equippedSlot === 'monitor') {
+      triggerInstantOrHoldScan();
+    } else {
+      usePhysicalTool();
+    }
+  }
 });
+
+attachHandsToDesktopCamera();
 
 async function switchToMode(targetMode) {
   if (targetMode === 'webcam') {
@@ -243,7 +288,7 @@ async function switchToMode(targetMode) {
       document.getElementById('mrSubBar').classList.remove('hidden');
       updateModeButtonsUI();
       showToast(
-        'Merged Reality activa: camina por la finca y usa tu mano frente a la cámara (pellizca para escanear/curar).',
+        'Merged Reality activa: usa el Monitor en [1.ESCÁNER] para diagnosticar y cambia a Spray o Tijeras para curar.',
         '#38bdf8',
         4200
       );
@@ -289,68 +334,86 @@ function updateModeButtonsUI() {
 }
 
 // ============================================================================
-// 4. LÓGICA DE BOTONES DEL DISPOSITIVO (▲ ● ▼, LATERAL Y PANTALLA IPS)
+// 4. LÓGICA CONGRUENTE DEL MONITOR (SOLO DETECTA EN MENÚ 1) Y HERRAMIENTAS FÍSICAS (SOLO CURAN)
 // ============================================================================
-function handleDeviceButton(buttonId, uvHit = null) {
+function cycleMonitorMenu(delta) {
+  appState.isScanning = false;
+  appState.screenModeIndex =
+    (appState.screenModeIndex + delta + SCREEN_MODES.length) % SCREEN_MODES.length;
+  monitor.triggerButtonPress(delta < 0 ? 'up' : 'down');
+  sound.playButtonClick('nav');
+  renderToolbeltUI();
+}
+
+function equipMonitorSlot() {
+  appState.equippedSlot = 'monitor';
+  sound.playButtonClick('nav');
+  updateDesktopHandLayout();
+  renderToolbeltUI();
+}
+
+function selectToolByIndex(idx, switchDesktopSlot = true) {
+  appState.selectedTreatmentIndex = ((idx % TREATMENTS.length) + TREATMENTS.length) % TREATMENTS.length;
+  if (TREATMENTS[appState.selectedTreatmentIndex].toolKind === 'sprayer') {
+    appState.lastSprayIndex = appState.selectedTreatmentIndex;
+  }
+  if (switchDesktopSlot && !xrManager.session) {
+    appState.equippedSlot = 'tool';
+    appState.isScanning = false;
+  }
+  agroTools.setTreatmentIndex(appState.selectedTreatmentIndex, Boolean(xrManager.session));
+  sound.playButtonClick('nav');
+  updateDesktopHandLayout();
+  renderToolbeltUI();
+}
+
+function handleMonitorHardwareButton(buttonId, uvHit = null) {
   if (buttonId === 'screen' && uvHit) {
     if (uvHit.y > 0.80 && uvHit.y < 0.91) {
       const tabIdx = Math.min(3, Math.max(0, Math.floor(uvHit.x * 4)));
       appState.screenModeIndex = tabIdx;
+      appState.isScanning = false;
       sound.playButtonClick('nav');
+      renderToolbeltUI();
       return;
     }
     buttonId = 'select';
   }
 
-  monitor.triggerButtonPress(buttonId);
-
   if (buttonId === 'up') {
-    sound.playButtonClick('nav');
-    if (SCREEN_MODES[appState.screenModeIndex].id === 'treat') {
-      appState.selectedTreatmentIndex =
-        (appState.selectedTreatmentIndex - 1 + TREATMENTS.length) % TREATMENTS.length;
-      renderProtocolButtons();
-    } else {
-      appState.screenModeIndex =
-        (appState.screenModeIndex - 1 + SCREEN_MODES.length) % SCREEN_MODES.length;
-    }
+    cycleMonitorMenu(-1);
   } else if (buttonId === 'down') {
-    sound.playButtonClick('nav');
-    if (SCREEN_MODES[appState.screenModeIndex].id === 'treat') {
-      appState.selectedTreatmentIndex = (appState.selectedTreatmentIndex + 1) % TREATMENTS.length;
-      renderProtocolButtons();
-    } else {
-      appState.screenModeIndex = (appState.screenModeIndex + 1) % SCREEN_MODES.length;
-    }
-  } else if (buttonId === 'side') {
-    sound.playButtonClick('side');
+    cycleMonitorMenu(1);
+  } else if (buttonId === 'side' || buttonId === 'select') {
+    monitor.triggerButtonPress(buttonId);
+    sound.playButtonClick(buttonId === 'side' ? 'side' : 'select');
     triggerInstantOrHoldScan();
-  } else if (buttonId === 'select') {
-    sound.playButtonClick('select');
-    const st = appState.activeStation;
-    if (!st) {
-      ipsScreen.showBanner('ACÉRCATE A UNA MATA (< 3m)', '#38bdf8', 1500);
-      showToast('Camina más cerca de una mata o mesa de café (< 3 metros) para interactuar.', '#38bdf8');
-      return;
-    }
-    if (!st.scanned) {
-      triggerInstantOrHoldScan();
-    } else {
-      executeSelectedTreatment();
-    }
   }
 }
 
 function triggerInstantOrHoldScan() {
+  // REGLA ESTRICTA DE CONGRUENCIA: El Monitor SOLO escanea si está en [1.ESCÁNER]
+  if (!isMonitorInScanMenu()) {
+    warnMustBeInScanMenu();
+    return;
+  }
+
   const st = appState.activeStation;
   if (!st) {
-    ipsScreen.showBanner('SIN OBJETIVO EN RANGO', '#f59e0b', 1400);
+    ipsScreen.showBanner('ACÉRCATE A UNA MATA (< 3m)', '#f59e0b', 1500);
     showToast('Acércate caminando a una mata o lote de café (< 3m) para escanearlo.', '#f59e0b');
     return;
   }
+
   if (st.scanned) {
     const dis = DISEASES[st.diseaseId];
-    ipsScreen.showBanner(`YA ESCANEADO: ${dis.shortName}`, dis.accentColor, 1400);
+    const reqTool = TREATMENTS.find((t) => t.id === dis.requiredTreatment);
+    ipsScreen.showBanner('USA HERRAMIENTA FÍSICA', '#34d399', 1800);
+    showToast(
+      `El Monitor ya detectó ${dis.shortName}. El aparato no cura: equipa ${reqTool ? reqTool.name : 'tu herramienta'} para tratar la planta.`,
+      '#34d399',
+      3800
+    );
     return;
   }
 
@@ -364,42 +427,74 @@ function triggerInstantOrHoldScan() {
     game.completeStationScan(st);
   } else {
     setTimeout(() => {
-      if (!pointerHoldingScan) appState.isScanning = false;
+      if (!pointerHoldingPrimary) appState.isScanning = false;
     }, 380);
   }
 }
 
-function executeSelectedTreatment() {
+/**
+ * Ejecuta la herramienta física equipada (Spray de Medicina, Tijeras de Podar o Sello)
+ */
+function usePhysicalTool() {
+  agroTools.triggerUseAnimation();
+  const activeTool = TREATMENTS[appState.selectedTreatmentIndex];
   const st = appState.activeStation;
+
+  // Efecto visual desde la herramienta incluso si falla para dar feedback táctil real
+  const toolOrigin = agroTools.getNozzleWorldPosition(new THREE.Vector3());
+
+  if (!st) {
+    if (activeTool.toolKind === 'shears') {
+      sound.playShearsSnip(false);
+    } else {
+      sound.playTreatmentSpray(false);
+    }
+    showToast(
+      `Acércate a menos de 3 m de una mata o mesa para usar ${activeTool.name}.`,
+      '#f59e0b',
+      2800
+    );
+    return;
+  }
+
+  const dest = st.getFocusWorldPosition();
   const res = game.applyTreatment(st, appState.selectedTreatmentIndex);
 
   if (!res.ok) {
-    sound.playTreatmentSpray(false);
+    if (activeTool.toolKind === 'shears') {
+      sound.playShearsSnip(false);
+    } else {
+      sound.playTreatmentSpray(false);
+    }
     ipsScreen.showBanner(
-      res.wrongProtocol ? 'PROTOCOLO INCORRECTO' : 'ESCANEA PRIMERO',
+      res.wrongProtocol ? 'HERRAMIENTA INCORRECTA' : 'ESCANEA PRIMERO EN MENÚ 1',
       '#f97316',
       1900
     );
-    showToast(res.reason, '#f97316', 3500);
+    showToast(res.reason, '#f97316', 3600);
     updateDiagnosisPanel();
     return;
   }
 
-  const origin = new THREE.Vector3();
-  monitor.root.getWorldPosition(origin);
-  const dest = st.getFocusWorldPosition();
-  fxSystem.emitSpray(origin, dest, res.treatment.particleColor);
-  st.applyImpulse((Math.random() - 0.5) * 1.4, -0.9);
+  // ¡Éxito! Partículas y sonido físico acorde a Spray vs Tijeras de Podar vs Sello
+  if (activeTool.toolKind === 'shears') {
+    fxSystem.emitPruningClippings(dest);
+    fxSystem.emitSpray(toolOrigin, dest, activeTool.particleColor);
+    sound.playShearsSnip(true);
+  } else {
+    fxSystem.emitSpray(toolOrigin, dest, activeTool.particleColor);
+    sound.playTreatmentSpray(true);
+  }
 
-  sound.playTreatmentSpray(true);
+  st.applyImpulse((Math.random() - 0.5) * 1.4, -0.9);
   ipsScreen.showBanner(
-    res.cured ? `¡CURADO! ${res.treatment.shortLabel}` : '¡LOTE SANO CERTIFICADO!',
+    res.cured ? `¡SANADO! ${activeTool.shortLabel}` : '¡LOTE SANO CERTIFICADO!',
     '#34d399',
     2100
   );
   showToast(res.message, '#34d399', 3600);
   updateDiagnosisPanel();
-  renderProtocolButtons();
+  renderToolbeltUI();
 }
 
 function triggerHumanVentilationGust(strength = 1.0) {
@@ -414,33 +509,73 @@ function triggerHumanVentilationGust(strength = 1.0) {
 }
 
 // ============================================================================
-// 5. LOCOMOCIÓN: TECLADO WASD, JOYSTICK TÁCTIL, MIRAR 360° Y VIAJE RADAR
+// 5. LOCOMOCIÓN: TECLADO WASD, JOYSTICK TÁCTIL, MIRAR 360° Y ATAJOS RÁPIDOS
 // ============================================================================
 const keysHeld = new Set();
-const joyVector = new THREE.Vector2(0, 0); // x: strafe, y: forward (-1..1)
+const joyVector = new THREE.Vector2(0, 0);
 const pointerNDC = new THREE.Vector2();
 let isLookingDrag = false;
 let lookLastX = 0;
 let lookLastY = 0;
 let dragAccumDist = 0;
-let pointerHoldingScan = false;
+let pointerHoldingPrimary = false;
+
+function startPrimaryActionHold() {
+  pointerHoldingPrimary = true;
+  if (appState.equippedSlot === 'monitor') {
+    monitor.triggerButtonPress('side');
+    sound.playButtonClick('side');
+    if (!isMonitorInScanMenu()) {
+      warnMustBeInScanMenu();
+      return;
+    }
+    appState.isScanning = true;
+  } else {
+    usePhysicalTool();
+  }
+}
+
+function stopPrimaryActionHold() {
+  pointerHoldingPrimary = false;
+  appState.isScanning = false;
+}
 
 window.addEventListener('keydown', (e) => {
+  if (e.repeat && (e.code === 'Space' || e.code === 'Enter')) return;
   keysHeld.add(e.code);
 
   if (e.code === 'Space') {
     e.preventDefault();
-    pointerHoldingScan = true;
-    appState.isScanning = true;
-    monitor.triggerButtonPress('side');
+    startPrimaryActionHold();
+  } else if (e.code === 'Enter') {
+    e.preventDefault();
+    if (appState.equippedSlot === 'monitor') {
+      triggerInstantOrHoldScan();
+    } else {
+      usePhysicalTool();
+    }
   } else if (e.code === 'ArrowUp') {
     e.preventDefault();
-    handleDeviceButton('up');
+    cycleMonitorMenu(-1);
   } else if (e.code === 'ArrowDown') {
     e.preventDefault();
-    handleDeviceButton('down');
-  } else if (e.code === 'Enter') {
-    handleDeviceButton('select');
+    cycleMonitorMenu(1);
+  } else if (e.code === 'Digit1') {
+    equipMonitorSlot();
+  } else if (e.code === 'Digit2') {
+    // Tecla 2: equipa el Spray; si ya está equipado el Spray, alterna entre las 3 medicinas (Roya/Broca/NPK)
+    if (
+      appState.equippedSlot === 'tool' &&
+      TREATMENTS[appState.selectedTreatmentIndex].toolKind === 'sprayer'
+    ) {
+      selectToolByIndex((appState.selectedTreatmentIndex + 1) % 3, true);
+    } else {
+      selectToolByIndex(appState.lastSprayIndex, true);
+    }
+  } else if (e.code === 'Digit3') {
+    selectToolByIndex(3, true); // ✂️ Tijeras de Podar
+  } else if (e.code === 'Digit4') {
+    selectToolByIndex(4, true); // 🏷️ Sello Certificador Sano
   } else if (e.code === 'KeyF') {
     const isBack = monitor.flipBackView();
     showToast(
@@ -453,17 +588,13 @@ window.addEventListener('keydown', (e) => {
     triggerHumanVentilationGust(1.0);
   } else if (e.code === 'KeyR') {
     orientTowardsNearestPendingStation(true);
-  } else if (['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code)) {
-    appState.screenModeIndex = Number(e.code.replace('Digit', '')) - 1;
-    sound.playButtonClick('nav');
   }
 });
 
 window.addEventListener('keyup', (e) => {
   keysHeld.delete(e.code);
   if (e.code === 'Space') {
-    pointerHoldingScan = false;
-    appState.isScanning = false;
+    stopPrimaryActionHold();
   }
 });
 
@@ -485,7 +616,7 @@ function updateJoystickFromEvent(e) {
     dy = (dy / len) * maxR;
   }
   joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-  joyVector.set(dx / maxR, -dy / maxR); // +y = caminar adelante
+  joyVector.set(dx / maxR, -dy / maxR);
   appState.autoWalkTarget = null;
 }
 
@@ -508,7 +639,6 @@ const releaseJoystick = (e) => {
 joystickZone.addEventListener('pointerup', releaseJoystick);
 joystickZone.addEventListener('pointercancel', releaseJoystick);
 
-// Clic en botones 3D del monitor o arrastrar para girar la vista 360°
 function updatePointerNDC(clientX, clientY) {
   pointerNDC.x = (clientX / window.innerWidth) * 2 - 1;
   pointerNDC.y = -(clientY / window.innerHeight) * 2 + 1;
@@ -524,10 +654,12 @@ canvas.addEventListener('pointerdown', (e) => {
     const hit = devHits[0];
     const btnId = hit.object.userData.buttonId;
     if (btnId === 'side') {
-      pointerHoldingScan = true;
-      appState.isScanning = true;
+      pointerHoldingPrimary = true;
+      if (isMonitorInScanMenu()) {
+        appState.isScanning = true;
+      }
     }
-    handleDeviceButton(btnId, hit.uv);
+    handleMonitorHardwareButton(btnId, hit.uv);
     return;
   }
 
@@ -564,14 +696,12 @@ window.addEventListener('pointermove', (e) => {
 });
 
 window.addEventListener('pointerup', (e) => {
-  if (pointerHoldingScan) {
-    pointerHoldingScan = false;
-    appState.isScanning = false;
+  if (pointerHoldingPrimary) {
+    stopPrimaryActionHold();
   }
 
   if (isLookingDrag) {
     isLookingDrag = false;
-    // Si fue un toque/clic limpio sobre una estación 3D en el mapa, caminar hacia ella
     if (dragAccumDist < 8) {
       updatePointerNDC(e.clientX, e.clientY);
       raycaster.setFromCamera(pointerNDC, camera);
@@ -588,7 +718,6 @@ window.addEventListener('pointerup', (e) => {
 function walkToStation(st) {
   if (!st) return;
   const [tx, tz] = st.config.mapPos;
-  // Pararse a ~1.35 m frente a la estación
   const dirFromStation = new THREE.Vector2(
     playerRig.position.x - tx,
     playerRig.position.z - tz
@@ -612,7 +741,6 @@ function orientTowardsNearestPendingStation(alsoWalk = false) {
   let best = null;
   let bestD = Infinity;
 
-  // Priorizar enfermas o no escaneadas
   const candidates = stations.filter((s) => s.diseaseId !== 'healthy' || !s.scanned);
   const pool = candidates.length > 0 ? candidates : stations;
 
@@ -637,7 +765,6 @@ function orientTowardsNearestPendingStation(alsoWalk = false) {
   }
 }
 
-// Clic en el Minimapa Radar para viajar/caminar a cualquier lote
 minimapCanvas.addEventListener('click', (e) => {
   const rect = minimapCanvas.getBoundingClientRect();
   const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -646,7 +773,6 @@ minimapCanvas.addEventListener('click', (e) => {
   const clickWorldX = nx * mapScale;
   const clickWorldZ = nz * mapScale;
 
-  // Si hizo clic cerca de una estación, caminar a esa estación; si no, caminar al punto
   let nearestSt = null;
   let minD = 2.4;
   stations.forEach((st) => {
@@ -668,30 +794,77 @@ minimapCanvas.addEventListener('click', (e) => {
 });
 
 // ============================================================================
-// 6. VINCULACIÓN DE LA INTERFAZ HUD Y MINIMAPA RADAR
+// 6. VINCULACIÓN DE LA INTERFAZ HUD, CINTURÓN DE HERRAMIENTAS Y MINIMAPA RADAR
 // ============================================================================
-function renderProtocolButtons() {
-  const list = document.getElementById('protocolList');
+function renderToolbeltUI() {
+  // 1. Lista lateral de las 5 configuraciones de herramientas físicas
+  const list = document.getElementById('toolbeltList');
   list.innerHTML = '';
   const st = appState.activeStation;
 
   TREATMENTS.forEach((tr, idx) => {
     const btn = document.createElement('button');
-    const isSel = idx === appState.selectedTreatmentIndex;
+    const isEquipped =
+      (xrManager.session || appState.equippedSlot === 'tool') &&
+      idx === appState.selectedTreatmentIndex;
     const isRec = st && st.scanned && DISEASES[st.diseaseId].requiredTreatment === tr.id;
-    btn.className = `proto-btn ${isSel ? 'selected' : ''}`;
+    btn.className = `proto-btn ${isEquipped ? 'selected' : ''}`;
     btn.innerHTML = `
-      <span>${tr.icon} ${tr.shortLabel}</span>
-      ${isRec ? '<span class="rec-pill">IA</span>' : ''}
+      <span>${tr.name}</span>
+      ${isRec ? '<span class="rec-pill">USAR ESTA</span>' : ''}
     `;
-    btn.addEventListener('click', () => {
-      appState.selectedTreatmentIndex = idx;
-      appState.screenModeIndex = 3;
-      sound.playButtonClick('nav');
-      renderProtocolButtons();
-    });
+    btn.addEventListener('click', () => selectToolByIndex(idx, true));
     list.appendChild(btn);
   });
+
+  // 2. Indicador del menú actual del Monitor IPS
+  const ipsBadge = document.getElementById('uiIpsMode');
+  const modeObj = SCREEN_MODES[appState.screenModeIndex];
+  ipsBadge.textContent = modeObj.short;
+  ipsBadge.className = modeObj.id === 'optical' ? 'emerald-txt' : 'amber-txt';
+
+  // 3. Cinturón rápido inferior (1. Monitor | 2. Spray | 3. Tijeras | 4. Sello)
+  const activeTool = TREATMENTS[appState.selectedTreatmentIndex];
+  const isMon = appState.equippedSlot === 'monitor';
+
+  document.getElementById('slotMonitor').classList.toggle('active', isMon);
+  document
+    .getElementById('slotSprayer')
+    .classList.toggle('active', !isMon && activeTool.toolKind === 'sprayer');
+  document
+    .getElementById('slotShears')
+    .classList.toggle('active', !isMon && activeTool.toolKind === 'shears');
+  document
+    .getElementById('slotStamp')
+    .classList.toggle('active', !isMon && activeTool.toolKind === 'certifier');
+
+  // Etiqueta dinámica del Spray para saber cuál de las 3 medicinas lleva el tanque
+  const sprayFormulaTr = TREATMENTS[appState.lastSprayIndex];
+  document.getElementById('slotSprayer').textContent = `2. ${sprayFormulaTr.shortLabel}`;
+
+  // 4. Botón de acción principal contextual y botón de cambiar medicina del Spray
+  const btnPrimary = document.getElementById('btnPrimaryAction');
+  const btnFormula = document.getElementById('btnCycleFormula');
+  btnFormula.classList.toggle('hidden', isMon || activeTool.toolKind !== 'sprayer');
+
+  if (isMon) {
+    if (isMonitorInScanMenu()) {
+      btnPrimary.textContent = '🔍 Escanear (Menú 1)';
+      btnPrimary.className = 'action-btn scan-cta';
+    } else {
+      btnPrimary.textContent = `⚠ Ve a [1.ESCÁNER] (estás en ${modeObj.short})`;
+      btnPrimary.className = 'action-btn warn-cta';
+    }
+  } else if (activeTool.toolKind === 'shears') {
+    btnPrimary.textContent = '✂️ Cortar con Tijeras de Podar';
+    btnPrimary.className = 'action-btn apply-cta';
+  } else if (activeTool.toolKind === 'sprayer') {
+    btnPrimary.textContent = `🧴 Rociar ${activeTool.shortLabel}`;
+    btnPrimary.className = 'action-btn apply-cta';
+  } else {
+    btnPrimary.textContent = '🏷️ Sellar Café Sano';
+    btnPrimary.className = 'action-btn apply-cta';
+  }
 }
 
 function updateDiagnosisPanel() {
@@ -705,22 +878,24 @@ function updateDiagnosisPanel() {
     titleEl.style.color = '#f8fafc';
     cardEl.style.borderLeftColor = '#38bdf8';
     descEl.textContent =
-      'Camina por los senderos (WASD / Joystick / Quest 3) siguiendo los anillos de luz o el Radar hasta acercarte (< 3m) a una mata o mesa.';
+      'Camina por los senderos hasta acercarte (< 3m) a una mata o mesa. Escanea en [1.ESCÁNER] y cura con Spray o Tijeras.';
     return;
   }
 
   if (!st.scanned) {
-    titleEl.textContent = `${st.name} · En rango`;
+    titleEl.textContent = `${st.name} · Sin escanear`;
     titleEl.style.color = '#38bdf8';
     cardEl.style.borderLeftColor = '#38bdf8';
-    descEl.textContent =
-      'Mantén presionado "🔍 Escáner Ø8mm" (Espacio o Gatillo Derecho en Quest 3) para diagnosticar hojas, cerezas y microclima.';
+    descEl.textContent = isMonitorInScanMenu()
+      ? 'Monitor en [1.ESCÁNER]: mantén "🔍 Escanear" (Espacio o Gatillo Izq. en Quest 3) para diagnosticar.'
+      : 'Pon el Monitor en el menú [1.ESCÁNER] con ▲/▼ (o X/Y en Quest 3) para poder escanear.';
   } else {
     const dis = DISEASES[st.diseaseId];
+    const reqTool = TREATMENTS.find((t) => t.id === dis.requiredTreatment);
     titleEl.textContent = `${dis.name} (${Math.round(st.health)}% vigor)`;
     titleEl.style.color = dis.accentColor;
     cardEl.style.borderLeftColor = dis.accentColor;
-    descEl.textContent = `${dis.symptoms} → ${dis.recommendation}`;
+    descEl.textContent = `${dis.symptoms} → Equipa y usa: ${reqTool ? reqTool.name : dis.recommendation}`;
   }
 }
 
@@ -733,7 +908,6 @@ function drawMinimap() {
 
   ctx.clearRect(0, 0, W, H);
 
-  // Anillos concéntricos del radar
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.16)';
   ctx.lineWidth = 1;
   [0.35, 0.68, 0.95].forEach((r) => {
@@ -742,7 +916,6 @@ function drawMinimap() {
     ctx.stroke();
   });
 
-  // Senderos principales esquemáticos
   ctx.strokeStyle = 'rgba(180, 130, 80, 0.35)';
   ctx.lineWidth = 5;
   ctx.beginPath();
@@ -752,13 +925,12 @@ function drawMinimap() {
   ctx.lineTo(half + 10 * scale, half - 1.2 * scale);
   ctx.stroke();
 
-  // Estaciones de café en el mapa
   stations.forEach((st) => {
     const sx = half + st.group.position.x * scale;
     const sz = half + st.group.position.z * scale;
     const isFocused = appState.activeStation === st;
 
-    let col = '#38bdf8'; // Sin escanear
+    let col = '#38bdf8';
     if (st.scanned) {
       col = st.diseaseId === 'healthy' ? '#10b981' : DISEASES[st.diseaseId].accentColor;
     }
@@ -777,20 +949,17 @@ function drawMinimap() {
     ctx.fill();
   });
 
-  // Jugador y cono de visión
   const px = half + playerRig.position.x * scale;
   const pz = half + playerRig.position.z * scale;
 
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
-  const heading = Math.atan2(forward.x, forward.z); // Ángulo en plano XZ
+  const heading = Math.atan2(forward.x, forward.z);
 
   ctx.save();
   ctx.translate(px, pz);
-  // En canvas +X es derecha, +Y es abajo (+Z mundo). Vector (sin(heading), cos(heading))
   ctx.rotate(-heading + Math.PI);
 
-  // Cono visual
   ctx.fillStyle = 'rgba(52, 211, 153, 0.22)';
   ctx.beginPath();
   ctx.moveTo(0, 0);
@@ -799,7 +968,6 @@ function drawMinimap() {
   ctx.closePath();
   ctx.fill();
 
-  // Flecha blanca del jugador
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.moveTo(0, -7);
@@ -850,7 +1018,7 @@ document.getElementById('btnToggle3DCadLabels').addEventListener('click', () => 
   cadModal.classList.add('hidden');
   showToast(
     appState.cadInspection
-      ? 'Cotas técnicas 3D activadas sobre el dispositivo.'
+      ? 'Cotas técnicas 3D activadas sobre el Monitor.'
       : 'Cotas técnicas 3D ocultas · Modo exploración normal.',
     '#38bdf8'
   );
@@ -881,6 +1049,7 @@ document.querySelectorAll('[data-infect]').forEach((btn) => {
     appState.scanProgress = st.scanned ? 1 : 0;
     game.recomputeEcosystemHealth();
     updateDiagnosisPanel();
+    renderToolbeltUI();
     showToast(`${st.name} configurada con: ${DISEASES[dId].name}`, DISEASES[dId].accentColor);
   });
 });
@@ -889,26 +1058,43 @@ document.getElementById('btnNextWave').addEventListener('click', () => {
   document.getElementById('waveModal').classList.add('hidden');
   game.startWave(game.wave + 1);
   appState.scanProgress = 0;
-  renderProtocolButtons();
+  appState.equippedSlot = 'monitor';
+  appState.screenModeIndex = 0;
+  updateDesktopHandLayout();
+  renderToolbeltUI();
   updateDiagnosisPanel();
 });
 
-const btnScanHold = document.getElementById('btnScanHold');
-btnScanHold.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  pointerHoldingScan = true;
-  appState.isScanning = true;
-  monitor.triggerButtonPress('side');
-  sound.playButtonClick('side');
+// Cinturón rápido inferior (1. Monitor | 2. Spray | 3. Tijeras | 4. Sello)
+document.getElementById('slotMonitor').addEventListener('click', () => equipMonitorSlot());
+document.getElementById('slotSprayer').addEventListener('click', () => {
+  if (
+    appState.equippedSlot === 'tool' &&
+    TREATMENTS[appState.selectedTreatmentIndex].toolKind === 'sprayer'
+  ) {
+    selectToolByIndex((appState.selectedTreatmentIndex + 1) % 3, true);
+  } else {
+    selectToolByIndex(appState.lastSprayIndex, true);
+  }
 });
-window.addEventListener('pointerup', () => {
-  pointerHoldingScan = false;
-  appState.isScanning = false;
+document.getElementById('slotShears').addEventListener('click', () => selectToolByIndex(3, true));
+document.getElementById('slotStamp').addEventListener('click', () => selectToolByIndex(4, true));
+
+document.getElementById('btnCycleFormula').addEventListener('click', () => {
+  selectToolByIndex((appState.lastSprayIndex + 1) % 3, true);
 });
 
-document.getElementById('btnDevUp').addEventListener('click', () => handleDeviceButton('up'));
-document.getElementById('btnDevDown').addEventListener('click', () => handleDeviceButton('down'));
-document.getElementById('btnDevSelect').addEventListener('click', () => handleDeviceButton('select'));
+const btnPrimaryAction = document.getElementById('btnPrimaryAction');
+btnPrimaryAction.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  startPrimaryActionHold();
+});
+window.addEventListener('pointerup', () => {
+  stopPrimaryActionHold();
+});
+
+document.getElementById('btnDevUp').addEventListener('click', () => cycleMonitorMenu(-1));
+document.getElementById('btnDevDown').addEventListener('click', () => cycleMonitorMenu(1));
 document.getElementById('btnNextNearest').addEventListener('click', () =>
   orientTowardsNearestPendingStation(true)
 );
@@ -924,15 +1110,12 @@ document.getElementById('btnFlipDevice').addEventListener('click', () => {
     '#38bdf8'
   );
 });
-document.getElementById('btnFanWind').addEventListener('click', () => {
-  triggerHumanVentilationGust(1.1);
-});
 
-renderProtocolButtons();
+renderToolbeltUI();
 updateDiagnosisPanel();
 
 // ============================================================================
-// 7. BUCLE PRINCIPAL: CAMINATA POR EL MAPA, DETECCIÓN DE RANGO, QUEST 3 & IPS
+// 7. BUCLE PRINCIPAL: CAMINATA, QUEST 3 (2 MANOS), CONGRUENCIA ESCÁNER Y HERRAMIENTAS
 // ============================================================================
 const clock = new THREE.Clock();
 let frameCounter = 0;
@@ -958,19 +1141,29 @@ renderer.setAnimationLoop((timeMs) => {
   // 1. Actualizar motor Webcam Merged Reality
   const mrState = mrEngine.update(timeMs);
 
-  // 2. Leer mandos Touch Plus de Meta Quest 3 si hay sesión XR activa
+  // 2. Leer mandos Touch Plus de Meta Quest 3 (Mano Izq = Monitor, Mano Der = Spray/Tijeras)
   const xrInput = xrManager.pollControllers(dt);
   if (xrManager.session) {
     if (xrInput.snapTurnRad !== 0) {
       playerRig.rotation.y += xrInput.snapTurnRad;
     }
-    if (xrInput.rightTriggerHeld) {
+
+    // Gatillo Izquierdo de Quest 3: Escanear SOLO si el Monitor está en [1.ESCÁNER]
+    if (xrInput.leftScanTriggerJustPressed) {
+      monitor.triggerButtonPress('side');
+      if (!isMonitorInScanMenu()) {
+        warnMustBeInScanMenu();
+      } else {
+        sound.playButtonClick('side');
+      }
+    }
+
+    if (xrInput.leftScanTriggerHeld && isMonitorInScanMenu()) {
       appState.isScanning = true;
-    } else if (!pointerHoldingScan) {
+    } else if (!pointerHoldingPrimary) {
       appState.isScanning = false;
     }
   } else {
-    // Giro con teclas Q / E o flechas laterales en escritorio
     const turnSpeed = 1.85;
     if (keysHeld.has('KeyQ') || keysHeld.has('ArrowLeft')) appState.playerYaw += turnSpeed * dt;
     if (keysHeld.has('KeyE') || keysHeld.has('ArrowRight')) appState.playerYaw -= turnSpeed * dt;
@@ -989,10 +1182,9 @@ renderer.setAnimationLoop((timeMs) => {
   if (keysHeld.has('KeyA')) moveStrafe -= 1;
 
   if (Math.abs(moveForward) > 0.05 || Math.abs(moveStrafe) > 0.05) {
-    appState.autoWalkTarget = null; // El control manual cancela caminata automática
+    appState.autoWalkTarget = null;
   }
 
-  // Caminata asistida al hacer clic en una estación lejana o en el Radar
   if (appState.autoWalkTarget) {
     const dx = appState.autoWalkTarget.x - playerRig.position.x;
     const dz = appState.autoWalkTarget.z - playerRig.position.z;
@@ -1038,17 +1230,16 @@ renderer.setAnimationLoop((timeMs) => {
     appState.walkBobPhase += dt * (isSprinting ? 12.5 : 8.5);
   }
 
-  // Ajustar altura del jugador al relieve suave de la finca
   const groundY = getTerrainHeight(playerRig.position.x, playerRig.position.z);
   playerRig.position.y = THREE.MathUtils.lerp(playerRig.position.y, groundY, Math.min(1, dt * 14));
 
-  // 4. Interacción de mano en modo Cámara MR y balanceo natural al caminar
+  // 4. Interacción de mano en modo Cámara MR y postura de manos en pantalla
   if (appState.mrMode === 'webcam') {
     const badge = document.getElementById('mrTrackerBadge');
     if (mrState.handDetected) {
       badge.textContent =
         mrState.trackerType === 'mediapipe'
-          ? `✋ Mano 3D activa ${mrState.isPinching ? '· ¡ESCANEO PELLIZCO!' : '(pellizca = escanear / curar)'}`
+          ? `✋ Mano 3D activa ${mrState.isPinching ? '· ¡ACCIÓN PELLIZCO!' : '(pellizca = usar equipo en mano)'}`
           : '👋 Movimiento óptico detectado';
 
       appState.handAimOffset.x = THREE.MathUtils.lerp(
@@ -1062,12 +1253,16 @@ renderer.setAnimationLoop((timeMs) => {
         dt * 8
       );
 
-      if (mrState.justPinched && appState.activeStation && appState.activeStation.scanned) {
-        executeSelectedTreatment();
-      } else if (mrState.isPinching && appState.activeStation && !appState.activeStation.scanned) {
-        appState.isScanning = true;
-      } else if (!pointerHoldingScan && !mrState.isPinching) {
-        appState.isScanning = false;
+      if (appState.equippedSlot === 'tool') {
+        if (mrState.justPinched) usePhysicalTool();
+      } else {
+        if (mrState.justPinched && !isMonitorInScanMenu()) {
+          warnMustBeInScanMenu();
+        } else if (mrState.isPinching && isMonitorInScanMenu()) {
+          appState.isScanning = true;
+        } else if (!pointerHoldingPrimary) {
+          appState.isScanning = false;
+        }
       }
 
       if (Math.abs(mrState.waveImpulseX) > 0.08) {
@@ -1090,26 +1285,48 @@ renderer.setAnimationLoop((timeMs) => {
         ? Math.abs(Math.sin(appState.walkBobPhase)) * 0.009
         : Math.sin(elapsed * 2.1) * 0.0025;
 
-    monitor.root.position.set(
-      0.145 + appState.handAimOffset.x + bobX,
-      -0.055 + appState.handAimOffset.y - bobY,
-      -0.44
-    );
-    monitor.root.rotation.set(
-      0.03 + appState.handAimOffset.y * 0.5,
-      -0.14 - appState.handAimOffset.x * 0.6,
-      Math.sin(elapsed * 1.4) * 0.008
-    );
+    if (appState.equippedSlot === 'monitor') {
+      monitor.root.position.set(
+        0.145 + appState.handAimOffset.x + bobX,
+        -0.055 + appState.handAimOffset.y - bobY,
+        -0.44
+      );
+      monitor.root.rotation.set(
+        0.03 + appState.handAimOffset.y * 0.5,
+        -0.14 - appState.handAimOffset.x * 0.6,
+        Math.sin(elapsed * 1.4) * 0.008
+      );
+    } else {
+      // Monitor sujeto en la mano izquierda como referencia diagnóstica
+      monitor.root.position.set(-0.23 + bobX * 0.6, -0.095 - bobY * 0.7, -0.52);
+      monitor.root.rotation.set(0.04, 0.24, 0);
+
+      // Herramienta física activa (Spray / Tijeras de Podar / Sello) en la mano derecha
+      agroTools.root.position.set(
+        0.165 + appState.handAimOffset.x + bobX,
+        -0.08 + appState.handAimOffset.y - bobY,
+        -0.42
+      );
+      agroTools.root.rotation.set(
+        0.05 + appState.handAimOffset.y * 0.4,
+        -0.16 - appState.handAimOffset.x * 0.5,
+        0
+      );
+    }
   }
 
   playerRig.updateMatrixWorld(true);
   monitor.root.getWorldPosition(tmpMonitorWorld);
 
-  // 5. Detectar qué mata o mesa está dentro del rango de escaneo (< 3.35 m) y en el cono frontal
+  // 5. Detectar qué estación está dentro del rango (< 3.35 m) y en mira
   const gazeDir = new THREE.Vector3();
+  const refOrigin = new THREE.Vector3();
   if (xrManager.session) {
-    monitor.lensCamera.getWorldDirection(gazeDir);
+    // En Quest 3 puedes apuntar con la cámara de tu casco o con el monitor/herramienta
+    camera.getWorldPosition(refOrigin);
+    camera.getWorldDirection(gazeDir);
   } else {
+    camera.getWorldPosition(refOrigin);
     camera.getWorldDirection(gazeDir);
   }
 
@@ -1119,12 +1336,12 @@ renderer.setAnimationLoop((timeMs) => {
 
   stations.forEach((st) => {
     st.getFocusWorldPosition(tmpStationWorld);
-    tmpToStation.copy(tmpStationWorld).sub(tmpMonitorWorld);
+    tmpToStation.copy(tmpStationWorld).sub(refOrigin);
     const distM = tmpToStation.length();
     if (distM > MAX_SCAN_RANGE_M) return;
 
     const align = tmpToStation.normalize().dot(gazeDir);
-    if (align > 0.38) {
+    if (align > 0.35) {
       const score = distM - align * 1.1;
       if (score < bestScore) {
         bestScore = score;
@@ -1140,11 +1357,10 @@ renderer.setAnimationLoop((timeMs) => {
     appState.scanProgress = bestStation && bestStation.scanned ? 1 : 0;
     if (prev) prev.refreshBadge(false);
     if (bestStation) bestStation.refreshBadge(true);
-    renderProtocolButtons();
+    renderToolbeltUI();
     updateDiagnosisPanel();
   }
 
-  // Si hay estación en mira, orientar suavemente la cámara óptica Ø8 mm hacia ella
   if (bestStation) {
     bestStation.getFocusWorldPosition(tmpStationWorld);
     monitor.lensCamera.lookAt(tmpStationWorld);
@@ -1152,10 +1368,9 @@ renderer.setAnimationLoop((timeMs) => {
     monitor.lensCamera.rotation.set(0, 0, 0);
   }
 
-  // Calcular brújula hacia la mata enferma o sin escanear más cercana del mapa
+  // Brújula hacia la mata enferma o sin escanear más cercana
   let compassAngle = null;
   let compassDistM = null;
-  let nearestLabel = '¡Cafetal sano!';
   const pendingPool = stations.filter((s) => s.diseaseId !== 'healthy' || !s.scanned);
   if (pendingPool.length > 0) {
     let minD = Infinity;
@@ -1172,22 +1387,24 @@ renderer.setAnimationLoop((timeMs) => {
     });
     if (nearestPending) {
       compassDistM = minD;
-      nearestLabel = `${nearestPending.name} (${minD.toFixed(1)}m)`;
       const targetBearing = Math.atan2(
         nearestPending.group.position.x - playerRig.position.x,
         nearestPending.group.position.z - playerRig.position.z
       );
       const playerBearing = Math.atan2(tmpForward.x, tmpForward.z);
-      // Diferencia angular relativa a hacia dónde mira el jugador
       compassAngle = playerBearing - targetBearing;
     }
   }
 
   const distCm = bestStation ? bestDistM * 100 : (compassDistM || 9.9) * 100;
 
-  // 6. Progreso de escaneo óptico si está activo y a rango
-  btnScanHold.classList.toggle('scanning', appState.isScanning);
-  if (appState.isScanning && bestStation && !bestStation.scanned) {
+  // 6. Progreso de escaneo óptico (SOLO avanza si está en 1.ESCÁNER)
+  if (!isMonitorInScanMenu()) {
+    appState.isScanning = false;
+  }
+
+  btnPrimaryAction.classList.toggle('scanning', appState.isScanning);
+  if (appState.isScanning && isMonitorInScanMenu() && bestStation && !bestStation.scanned) {
     const proxBoost = bestDistM < 1.9 ? 0.95 : 0.65;
     appState.scanProgress = Math.min(1, appState.scanProgress + dt * proxBoost);
     sound.playScanTick(appState.scanProgress, bestStation.diseaseId !== 'healthy');
@@ -1195,12 +1412,14 @@ renderer.setAnimationLoop((timeMs) => {
     if (appState.scanProgress >= 1) {
       appState.scanProgress = 1;
       appState.isScanning = false;
+      if (xrManager.session) xrManager.pulseHaptic('left', 0.8, 110);
       game.completeStationScan(bestStation);
     }
   }
 
-  // 7. Actualizar juego, estaciones 3D, partículas y ecosistema
+  // 7. Actualizar juego, herramientas 3D, estaciones 3D, partículas y ecosistema
   game.update(dt);
+  agroTools.update(dt);
 
   const effectiveWind = environment.windStrength + mrState.humanMotion * 0.65;
   stations.forEach((st) => {
@@ -1233,12 +1452,14 @@ renderer.setAnimationLoop((timeMs) => {
     elapsed
   });
 
-  // 9. Renderizar vista óptica de la cámara trasera Ø8 mm (funciona también en Meta Quest 3)
+  // 9. Renderizar vista óptica de la cámara trasera Ø8 mm (oculta tanto monitor como herramientas 3D)
   const lensFrameInterval = renderer.xr.isPresenting ? 4 : 2;
   if (frameCounter % lensFrameInterval === 0) {
     const wasXR = renderer.xr.enabled;
+    const prevToolVis = agroTools.root.visible;
     renderer.xr.enabled = false;
     monitor.root.visible = false;
+    agroTools.root.visible = false;
 
     const prevTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(lensRenderTarget);
@@ -1247,6 +1468,7 @@ renderer.setAnimationLoop((timeMs) => {
     renderer.setRenderTarget(prevTarget);
 
     monitor.root.visible = true;
+    agroTools.root.visible = prevToolVis;
     renderer.xr.enabled = wasXR;
 
     ipsScreen.ingestLensPixels(
@@ -1288,8 +1510,8 @@ renderer.setAnimationLoop((timeMs) => {
     document.getElementById('kpiScore').textContent = String(game.score);
     document.getElementById('kpiWave').textContent = `#${game.wave}`;
 
-    document.getElementById('uiTemp').textContent = `${readings.liveTemp.toFixed(1)} °C`;
-    document.getElementById('uiHumidity').textContent = `${Math.round(readings.liveHumidity)} %`;
+    document.getElementById('uiTempHum').textContent =
+      `${readings.liveTemp.toFixed(1)}°C · ${Math.round(readings.liveHumidity)}%`;
     document.getElementById('uiDistance').textContent = bestStation
       ? `${bestDistM.toFixed(1)} m (A tiro)`
       : compassDistM
@@ -1305,8 +1527,8 @@ renderer.setAnimationLoop((timeMs) => {
       xrManager.updateWristHud({
         health: game.ecosystemHealth,
         wave: game.wave,
-        score: game.score,
-        nearestText: bestStation ? `En mira: ${bestStation.name}` : `Sig: ${nearestLabel}`
+        sickCount: remainingSick,
+        score: game.score
       });
     }
   }

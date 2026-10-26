@@ -97,11 +97,11 @@ export class GameDirector {
 
     const dis = DISEASES[station.diseaseId];
 
-    // Si aún no ha sido escaneada, advertir pero permitir diagnóstico guiado
+    // Si aún no ha sido escaneada, advertir claramente que primero debe escanearse en 1.ESCÁNER
     if (!station.scanned) {
       return {
         ok: false,
-        reason: 'Escanea primero con el lente Ø8mm (Botón Lateral) antes de tratar.'
+        reason: 'Escanea primero con el Monitor en el menú [1.ESCÁNER] antes de usar tu herramienta física.'
       };
     }
 
@@ -149,7 +149,7 @@ export class GameDirector {
         ok: false,
         wrongProtocol: true,
         treatment,
-        reason: `Protocolo incorrecto para ${dis.shortName}. Usa: ${needed ? needed.shortLabel : dis.recommendation}`
+        reason: `Herramienta incorrecta para ${dis.shortName}. Equipa y usa: ${needed ? needed.name : dis.recommendation}`
       };
     }
   }

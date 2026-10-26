@@ -22,7 +22,7 @@ export const DISEASES = {
     requiredTreatment: 'verify_healthy',
     targetsAllowed: ['plant', 'cherries', 'beans'],
     symptoms: 'Hojas verde esmeralda brillante, cerezas firmes sin perforaciones y humedad equilibrada.',
-    recommendation: 'Certificar estado saludable. Evitar agroquímicos innecesarios para proteger polinizadores.'
+    recommendation: 'Usa el 🏷️ Sello: Certificar Café Sano (sin aplicar agroquímicos).'
   },
   roya: {
     id: 'roya',
@@ -42,7 +42,7 @@ export const DISEASES = {
     requiredTreatment: 'bio_fungicide',
     targetsAllowed: ['plant'],
     symptoms: 'Pústulas polvorientas amarillo-naranja en el envés de las hojas y defoliación progresiva.',
-    recommendation: 'Aplicar Bio-Fungicida Cúprico / Trichoderma y mejorar ventilación del follaje.'
+    recommendation: 'Usa el 🧴 Spray: Bio-Fungicida (tanque azul) sobre el envés foliar.'
   },
   broca: {
     id: 'broca',
@@ -62,7 +62,7 @@ export const DISEASES = {
     requiredTreatment: 'beauveria_rere',
     targetsAllowed: ['plant', 'cherries', 'beans'],
     symptoms: 'Perforación circular Ø 1 mm en el ombligo/corona de la cereza y galerías internas en la almendra.',
-    recommendation: 'Aplicar hongo entomopatógeno Beauveria bassiana + Recolección Sanitaria (Re-Re).'
+    recommendation: 'Usa el 🧴 Spray: Beauveria (tanque rojo) sobre cerezas y grano.'
   },
   cercospora: {
     id: 'cercospora',
@@ -82,7 +82,7 @@ export const DISEASES = {
     requiredTreatment: 'foliar_npk',
     targetsAllowed: ['plant', 'cherries'],
     symptoms: 'Lesiones necróticas pardas con halo clorótico amarillo por alta radiación y falta de nitrógeno/potasio.',
-    recommendation: 'Aplicar Nutrición Foliar NPK Orgánica y activar regulación de sombrío húmedo.'
+    recommendation: 'Usa el 🧴 Spray: Nutrición NPK (tanque dorado) sobre el follaje.'
   },
   antracnosis: {
     id: 'antracnosis',
@@ -102,60 +102,70 @@ export const DISEASES = {
     requiredTreatment: 'pruning_solar',
     targetsAllowed: ['plant', 'cherries', 'beans'],
     symptoms: 'Manchas negras hundidas en cerezas/ramas y humedad crítica (>18% en grano pergamino).',
-    recommendation: 'Ejecutar Poda Fitosanitaria + Aireación y Secado Solar Controlado.'
+    recommendation: 'Usa las ✂️ Tijeras de Podar para cortar ramas enfermas y airear.'
   }
 };
 
 export const TREATMENTS = [
   {
-    id: 'verify_healthy',
-    shortLabel: 'CERTIFICAR SANO',
-    name: 'Certificar Lote Sano',
-    icon: '✓',
-    color: '#10b981',
-    particleColor: 0x34d399,
-    cures: 'healthy',
-    description: 'Registra mata o grano saludable como Café Especial de Origen sin químicos.'
-  },
-  {
     id: 'bio_fungicide',
-    shortLabel: 'BIO-FUNGICIDA',
-    name: 'Bio-Fungicida + Trichoderma',
-    icon: '✦',
+    toolKind: 'sprayer',
+    shortLabel: 'SPRAY BIO-FUNGICIDA',
+    name: '🧴 Spray: Bio-Fungicida (Anti-Roya)',
+    icon: '🧴',
     color: '#38bdf8',
+    liquidHex: 0x0ea5e9,
     particleColor: 0x38bdf8,
     cures: 'roya',
-    description: 'Nebulización biológica contra esporas de Roya (Hemileia vastatrix).'
+    description: 'Atomizador con cobre biológico y Trichoderma contra esporas de Roya.'
   },
   {
     id: 'beauveria_rere',
-    shortLabel: 'BEAUVERIA + RE-RE',
-    name: 'Beauveria bassiana + Re-Re',
-    icon: '❖',
+    toolKind: 'sprayer',
+    shortLabel: 'SPRAY BEAUVERIA',
+    name: '🧴 Spray: Beauveria (Anti-Broca)',
+    icon: '🧴',
     color: '#f43f5e',
+    liquidHex: 0xe11d48,
     particleColor: 0xfda4af,
     cures: 'broca',
-    description: 'Control biológico y recolección sanitaria de frutos perforados por Broca.'
+    description: 'Atomizador entomopatógeno contra el insecto perforador de la Broca.'
   },
   {
     id: 'foliar_npk',
-    shortLabel: 'NUTRICIÓN NPK',
-    name: 'Nutrición Foliar NPK + Sombrío',
-    icon: '◈',
+    toolKind: 'sprayer',
+    shortLabel: 'SPRAY NUTRICIÓN NPK',
+    name: '🧴 Spray: Nutrición NPK (Hierro)',
+    icon: '🧴',
     color: '#facc15',
+    liquidHex: 0xeab308,
     particleColor: 0xfde047,
     cures: 'cercospora',
-    description: 'Restaura clorofila, potasio y equilibrio hídrico frente a Mancha de Hierro.'
+    description: 'Atomizador foliar rico en nitrógeno y potasio contra Mancha de Hierro.'
   },
   {
     id: 'pruning_solar',
-    shortLabel: 'PODA Y SECADO',
-    name: 'Poda Sanitaria & Secado Solar',
-    icon: '☀',
+    toolKind: 'shears',
+    shortLabel: 'TIJERAS DE PODAR',
+    name: '✂️ Tijeras de Podar (Antracnosis)',
+    icon: '✂️',
     color: '#c084fc',
-    particleColor: 0xe879f9,
+    liquidHex: 0xa855f7,
+    particleColor: 0x86efac,
     cures: 'antracnosis',
-    description: 'Elimina tejido necrótico y reduce exceso de humedad en rama o grano pergamino.'
+    description: 'Corta ramas/tejido necrótico con Antracnosis y abre paso al secado solar.'
+  },
+  {
+    id: 'verify_healthy',
+    toolKind: 'certifier',
+    shortLabel: 'SELLO LOTE SANO',
+    name: '🏷️ Sello: Certificar Café Sano',
+    icon: '🏷️',
+    color: '#10b981',
+    liquidHex: 0x10b981,
+    particleColor: 0x34d399,
+    cures: 'healthy',
+    description: 'Certifica mata o grano saludable como Café Especial sin aplicar químicos.'
   }
 ];
 
