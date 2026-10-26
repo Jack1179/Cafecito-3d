@@ -1,6 +1,6 @@
 /**
- * Catálogo agronómico de patologías del café (mata y grano/cereza)
- * y protocolos de tratamiento para el Monitor Ambiental Portátil Cafecito.
+ * Catálogo agronómico de patologías del café (mata y grano/cereza),
+ * protocolos de tratamiento y estaciones distribuidas por el mapa explorable.
  */
 
 export const DISEASES = {
@@ -159,45 +159,105 @@ export const TREATMENTS = [
   }
 ];
 
+/**
+ * 10 estaciones cafeteras repartidas en las 4 zonas de la finca explorable (34m × 34m):
+ * - Beneficiadero Central (muestras de cereza y pergamino en mesas de madera)
+ * - Sendero Norte (Lote Variedad Castillo)
+ * - Terraza Este (Lote Variedad Caturra al sol)
+ * - Bosque Oeste (Sombrío de Borbón Rosado y Geisha)
+ */
 export const STATIONS_CONFIG = [
   {
     index: 0,
-    id: 'mata-castillo',
-    name: 'Mata #1 · Variedad Castillo',
+    id: 'mata-castillo-1',
+    name: 'Mata #1 · Castillo Entrada',
+    zone: 'Sendero Central',
     kind: 'plant',
-    position: [-0.62, -0.26, -0.95],
-    scale: 1.0
+    mapPos: [-1.7, -1.6],
+    scale: 2.15
   },
   {
     index: 1,
-    id: 'mata-caturra',
-    name: 'Mata #2 · Variedad Caturra',
-    kind: 'plant',
-    position: [0.0, -0.26, -0.86],
-    scale: 1.06
+    id: 'canasto-patio',
+    name: 'Canasto #1 · Cerezas Patio',
+    zone: 'Beneficiadero',
+    kind: 'cherries',
+    onTable: true,
+    mapPos: [1.9, -1.5],
+    scale: 1.55
   },
   {
     index: 2,
-    id: 'mata-borbon',
-    name: 'Mata #3 · Borbón Rosado',
-    kind: 'plant',
-    position: [0.62, -0.26, -0.95],
-    scale: 0.98
+    id: 'zaranda-solar',
+    name: 'Zaranda #1 · Pergamino Sol',
+    zone: 'Beneficiadero',
+    kind: 'beans',
+    onTable: true,
+    mapPos: [3.4, -3.1],
+    scale: 1.55
   },
   {
     index: 3,
-    id: 'canasto-cerezas',
-    name: 'Canasto · Cerezas de Café',
-    kind: 'cherries',
-    position: [-0.35, -0.34, -0.68],
-    scale: 1.0
+    id: 'mata-castillo-2',
+    name: 'Mata #2 · Castillo Norte',
+    zone: 'Lote Norte',
+    kind: 'plant',
+    mapPos: [-2.8, -6.2],
+    scale: 2.25
   },
   {
     index: 4,
-    id: 'zaranda-pergamino',
-    name: 'Zaranda · Café en Grano',
-    kind: 'beans',
-    position: [0.35, -0.34, -0.68],
-    scale: 1.0
+    id: 'mata-castillo-3',
+    name: 'Mata #3 · Cumbre Castillo',
+    zone: 'Lote Norte',
+    kind: 'plant',
+    mapPos: [1.1, -9.4],
+    scale: 2.35
+  },
+  {
+    index: 5,
+    id: 'mata-caturra-1',
+    name: 'Mata #4 · Caturra Terraza',
+    zone: 'Terraza Este',
+    kind: 'plant',
+    mapPos: [6.4, -4.6],
+    scale: 2.2
+  },
+  {
+    index: 6,
+    id: 'mata-caturra-2',
+    name: 'Mata #5 · Caturra Ladera',
+    zone: 'Terraza Este',
+    kind: 'plant',
+    mapPos: [8.6, -0.4],
+    scale: 2.25
+  },
+  {
+    index: 7,
+    id: 'canasto-este',
+    name: 'Canasto #2 · Cosecha Este',
+    zone: 'Terraza Este',
+    kind: 'cherries',
+    onTable: true,
+    mapPos: [5.8, 3.1],
+    scale: 1.55
+  },
+  {
+    index: 8,
+    id: 'mata-borbon-1',
+    name: 'Mata #6 · Borbón Sombrío',
+    zone: 'Bosque Oeste',
+    kind: 'plant',
+    mapPos: [-6.3, -3.4],
+    scale: 2.3
+  },
+  {
+    index: 9,
+    id: 'mata-geisha-1',
+    name: 'Mata #7 · Geisha Especial',
+    zone: 'Bosque Oeste',
+    kind: 'plant',
+    mapPos: [-5.1, 3.5],
+    scale: 2.2
   }
 ];
