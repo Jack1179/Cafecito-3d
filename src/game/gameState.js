@@ -26,9 +26,10 @@ export class GameDirector {
     this.waveCompleted = false;
     this.spreadTimer = 0;
 
-    // Seleccionar patologías válidas por tipo de estación
-    const sickCount = Math.min(4, 2 + Math.floor((waveNum + 1) / 2));
-    const indices = [0, 1, 2, 3, 4].sort(() => Math.random() - 0.5);
+    // Seleccionar patologías válidas repartidas por las 10 estaciones del mapa
+    const total = this.stations.length;
+    const sickCount = Math.min(total - 2, 4 + waveNum);
+    const indices = this.stations.map((s) => s.index).sort(() => Math.random() - 0.5);
     const sickSet = new Set(indices.slice(0, sickCount));
 
     this.stations.forEach((st) => {
@@ -47,7 +48,7 @@ export class GameDirector {
     this.recomputeEcosystemHealth();
     if (this.callbacks.onLog) {
       this.callbacks.onLog(
-        `Ronda ${this.wave} iniciada: inspecciona las 3 matas y las 2 muestras de café con el monitor.`,
+        `Ronda #${this.wave}: camina por la finca (WASD / Joystick / Quest 3) y erradica los ${sickCount} brotes de café enfermo.`,
         'info'
       );
     }
@@ -153,15 +154,17 @@ export class GameDirector {
     }
   }
 
+  getSickCount() {
+    return this.stations.filter((st) => st.diseaseId !== 'healthy').length;
+  }
+
   checkWaveVictory() {
     if (this.playMode !== 'campaign' || this.waveCompleted) return;
-    const allResolved = this.stations.every(
-      (st) => st.diseaseId === 'healthy' && (st.verifiedHealthy || st.scanned)
-    );
-    if (allResolved) {
+    const allCured = this.stations.every((st) => st.diseaseId === 'healthy');
+    if (allCured) {
       this.waveCompleted = true;
-      this.score += 300;
-      this.harvestSavedKg += 15;
+      this.score += 350;
+      this.harvestSavedKg += 18;
       if (this.callbacks.onWaveComplete) {
         this.callbacks.onWaveComplete(this.wave, this.score, this.harvestSavedKg);
       }
@@ -172,7 +175,7 @@ export class GameDirector {
    * Calcula lecturas en vivo de la rejilla trasera Ø12 mm combinando:
    * - Clima ambiental base
    * - Luz y movimiento real del cuarto (Merged Reality)
-   * - Microclima local de la mata/grano enfocado según distancia
+   * - Microclima local de la mata/grano enfocado según distancia al caminar
    */
   computeLiveSensorReadings({
     envBaseTemp = 21.0,
@@ -180,7 +183,7 @@ export class GameDirector {
     roomBrightness = 0.72,
     humanMotion = 0,
     targetStation = null,
-    distanceCm = 30,
+    distanceCm = 120,
     elapsed = 0
   }) {
     // Influencia humana/ambiental: más luz sube ligeramente T y baja HR; brisa humana ventila HR
@@ -190,7 +193,7 @@ export class GameDirector {
 
     if (targetStation) {
       const dis = DISEASES[targetStation.diseaseId];
-      const proxWeight = Math.max(0, Math.min(1, 1 - (distanceCm - 12) / 38));
+      const proxWeight = Math.max(0, Math.min(1, 1 - (distanceCm - 45) / 280));
       const targetTemp = (dis.tempRange[0] + dis.tempRange[1]) * 0.5;
       const targetHum = (dis.humidityRange[0] + dis.humidityRange[1]) * 0.5;
       const targetVoc = (dis.vocRange[0] + dis.vocRange[1]) * 0.5;

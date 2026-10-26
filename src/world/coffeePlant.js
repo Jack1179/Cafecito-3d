@@ -146,27 +146,38 @@ function createStationBadge() {
  * un Canasto de Cerezas Cosechadas o una Zaranda de Café Pergamino).
  */
 export class CoffeeStation3D {
-  constructor(config) {
+  constructor(config, groundY = 0) {
     this.config = config;
     this.index = config.index;
     this.id = config.id;
     this.name = config.name;
+    this.zone = config.zone || 'Cafetal';
     this.kind = config.kind; // 'plant' | 'cherries' | 'beans'
 
     this.diseaseId = 'healthy';
     this.scanned = false;
+    this.verifiedHealthy = false;
     this.health = 96;
     this.lesionSeverity = 0;
     this.swayVelocity = new THREE.Vector2(0, 0);
     this.swayOffset = new THREE.Vector2(0, 0);
     this.bloomFactor = 0; // Floración cafetera tras curar
 
+    const sc = config.scale || 1;
+    const [mx, mz] = config.mapPos || [config.position?.[0] || 0, config.position?.[2] || -1];
+    const baseY = config.onTable ? groundY + 0.78 : groundY + 0.13 * sc;
+
     this.group = new THREE.Group();
-    this.group.position.fromArray(config.position);
-    this.group.scale.setScalar(config.scale || 1);
+    this.group.position.set(mx, baseY, mz);
+    this.group.scale.setScalar(sc);
 
     this.swayPivot = new THREE.Group();
     this.group.add(this.swayPivot);
+
+    if (config.onTable) {
+      this.buildWoodenTable(0.78 / sc);
+    }
+    this.buildGroundBeacon(config.onTable ? -0.77 / sc : -0.125);
 
     // Textura propia de hoja para poder actualizar patología dinámicamente
     this.leafCanvas = document.createElement('canvas');
@@ -208,6 +219,45 @@ export class CoffeeStation3D {
   getFocusWorldPosition(target = new THREE.Vector3()) {
     this.hitCollider.getWorldPosition(target);
     return target;
+  }
+
+  buildWoodenTable(tableHeightLocal) {
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.82 });
+    const topGeo = new THREE.BoxGeometry(0.46, 0.028, 0.36);
+    const topMesh = new THREE.Mesh(topGeo, woodMat);
+    topMesh.position.y = -0.012;
+    topMesh.castShadow = true;
+    topMesh.receiveShadow = true;
+    this.group.add(topMesh);
+
+    const legH = Math.max(0.2, tableHeightLocal - 0.02);
+    const legGeo = new THREE.BoxGeometry(0.032, legH, 0.032);
+    [
+      [-0.19, -0.14],
+      [0.19, -0.14],
+      [-0.19, 0.14],
+      [0.19, 0.14]
+    ].forEach(([lx, lz]) => {
+      const leg = new THREE.Mesh(legGeo, woodMat);
+      leg.position.set(lx, -legH / 2 - 0.02, lz);
+      leg.castShadow = true;
+      this.group.add(leg);
+    });
+  }
+
+  buildGroundBeacon(localY) {
+    const ringGeo = new THREE.RingGeometry(0.22, 0.26, 36);
+    ringGeo.rotateX(-Math.PI / 2);
+    this.beaconMat = new THREE.MeshBasicMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.72,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    this.beaconRing = new THREE.Mesh(ringGeo, this.beaconMat);
+    this.beaconRing.position.y = localY;
+    this.group.add(this.beaconRing);
   }
 
   buildCoffeePlant() {
@@ -603,8 +653,12 @@ export class CoffeeStation3D {
     ctx.font = 'bold 18px ui-monospace, monospace';
     const statusTxt = this.scanned
       ? `${dis.shortName} · ${Math.round(this.health)}%`
-      : '● SIN DIAGNOSTICAR (ESCANEA)';
+      : '● ACÉRCATE Y ESCANEA';
     ctx.fillText(statusTxt, canvas.width / 2, 71);
+
+    if (this.beaconMat) {
+      this.beaconMat.color.set(this.scanned ? dis.accentColor : '#38bdf8');
+    }
 
     tex.needsUpdate = true;
   }
@@ -652,9 +706,15 @@ export class CoffeeStation3D {
       attr.needsUpdate = true;
     }
 
-    // Pulso de escala sutil en la etiqueta cuando está en la mira del monitor
-    const targetBadgeScale = isTargeted ? 1.08 : 0.96;
+    // Pulso de escala sutil en la etiqueta y anillo de piso cuando está en la mira
+    const targetBadgeScale = isTargeted ? 1.12 : 0.94;
     this.badge.sprite.scale.set(0.34 * targetBadgeScale, 0.085 * targetBadgeScale, 1);
+
+    if (this.beaconRing) {
+      const pulse = 1 + Math.sin(elapsed * 3.5 + this.index) * 0.08;
+      this.beaconRing.scale.setScalar(isTargeted ? pulse * 1.16 : pulse);
+      this.beaconMat.opacity = isTargeted ? 0.92 : this.scanned && this.diseaseId === 'healthy' ? 0.36 : 0.68;
+    }
   }
 }
 

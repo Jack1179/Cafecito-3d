@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Cafecito MR · Monitor Ambiental 3D &amp; Diagnóstico de Café</title>
+    <title>Cafecito MR · Finca Explorable 3D &amp; Quest 3 Mixed Reality</title>
     <meta
       name="description"
-      content="Juego interactivo de Merged Reality y Mixed Reality del Monitor Ambiental Portátil Cafecito (120×65×18 mm): detecta y trata enfermedades en matas y granos de café."
+      content="Juego interactivo explorable de Merged Reality y Mixed Reality (compatible con Meta Quest 3, Webcam y PC/Móvil) del Monitor Ambiental Portátil Cafecito (120×65×18 mm)."
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <link rel="stylesheet" href="./src/styles.css" />
@@ -15,7 +15,7 @@
     <!-- Capa de video para Merged Reality (Webcam / Cámara Móvil) -->
     <video id="mrVideo" playsinline muted autoplay></video>
 
-    <!-- Lienzo WebGL 3D principal (Three.js + WebXR) -->
+    <!-- Lienzo WebGL 3D principal (Three.js + WebXR Quest 3) -->
     <canvas id="sceneCanvas"></canvas>
 
     <!-- Lienzo superpuesto para esqueleto de mano MediaPipe / retícula óptica -->
@@ -28,8 +28,8 @@
         <div class="brand-block">
           <div class="brand-dot"></div>
           <div>
-            <h1 class="brand-title">CAFECITO <span>MR · 3D</span></h1>
-            <p class="brand-sub">Monitor Fitosanitario Portátil · 120×65×18 mm</p>
+            <h1 class="brand-title">CAFECITO <span>MR · MAPA 3D</span></h1>
+            <p class="brand-sub">Explora el Cafetal · Monitor 120×65×18 mm</p>
           </div>
         </div>
 
@@ -39,6 +39,10 @@
             <strong id="kpiHealth" class="kpi-val emerald">82%</strong>
           </div>
           <div class="kpi-item">
+            <span class="kpi-label">Brotes Activos</span>
+            <strong id="kpiSick" class="kpi-val rose">5</strong>
+          </div>
+          <div class="kpi-item hide-xs">
             <span class="kpi-label">Cosecha Salvada</span>
             <strong id="kpiHarvest" class="kpi-val sky">12.5 kg</strong>
           </div>
@@ -53,14 +57,17 @@
         </div>
 
         <div class="mode-actions">
-          <button id="btnMode3D" class="pill-btn active" title="Entorno Cafetal 3D Interactivo">
+          <button id="btnMode3D" class="pill-btn active" title="Explorar Finca Cafetera 3D Completa">
             🌿 Cafetal 3D
           </button>
           <button id="btnModeMR" class="pill-btn accent-mr" title="Merged Reality con Cámara en Vivo y Manos">
-            📹 Merged Reality
+            📹 Cámara MR
           </button>
-          <button id="btnModeXR" class="pill-btn" title="Mixed Reality WebXR (Quest / Android AR)">
-            🥽 WebXR AR
+          <button id="btnModeXR" class="pill-btn quest-btn" title="Meta Quest 3 Passthrough Mixed Reality / Android AR">
+            🥽 Quest 3 MR
+          </button>
+          <button id="btnModeVR" class="pill-btn" title="Meta Quest 3 Realidad Virtual Inmersiva (Cafetal Completo)">
+            🥽 Quest VR
           </button>
           <button id="btnCadSheet" class="icon-btn" title="Inspección CAD 360° y Hoja Técnica">
             📐 CAD
@@ -82,67 +89,83 @@
         <button id="btnSwitchCam" class="mini-btn">🔄 Cambiar Cámara</button>
       </div>
 
-      <!-- Panel Izquierdo: Telemetría Reactiva Humano ↔ Aparato ↔ Entorno -->
-      <aside id="telemetryPanel" class="side-panel glass-panel">
-        <div class="panel-header">
-          <span>📡 Respuesta Sensor &amp; Entorno</span>
-          <button id="btnTogglePlayMode" class="mini-btn highlight">Modo: Cosecha</button>
-        </div>
-
-        <div class="sensor-grid">
-          <div class="sensor-box">
-            <small>Temp Ø12mm</small>
-            <strong id="uiTemp">21.0 °C</strong>
-          </div>
-          <div class="sensor-box">
-            <small>Humedad Ø12mm</small>
-            <strong id="uiHumidity">68 %</strong>
-          </div>
-          <div class="sensor-box">
-            <small>Dist. Lente Ø8mm</small>
-            <strong id="uiDistance">24 cm</strong>
-          </div>
-          <div class="sensor-box">
-            <small>Luz / Brisa Real</small>
-            <strong id="uiEnvCoupling">72% · Calma</strong>
-          </div>
-        </div>
-
-        <div class="diagnosis-card" id="uiDiagnosisCard">
-          <div class="diag-title" id="uiDiagTitle">Apunta y escanea una estación</div>
-          <p class="diag-desc" id="uiDiagDesc">
-            Arrastra en la escena o elige una mata/muestra abajo. Pulsa los botones físicos del monitor (▲ ● ▼ y Lateral) para diagnosticar y curar.
-          </p>
-        </div>
-
-        <!-- Selector rápido de protocolo de tratamiento -->
-        <div class="protocol-section">
-          <div class="section-caption">Protocolo Fitosanitario (▲/▼ + ●):</div>
-          <div id="protocolList" class="protocol-list"></div>
-        </div>
-
-        <!-- Controles Clima & Laboratorio Libre -->
-        <div class="lab-section">
-          <div class="section-caption">Microclima del Entorno:</div>
-          <div class="chip-row">
-            <button class="chip active" data-climate="balanced">☀ Templado</button>
-            <button class="chip" data-climate="humid">🌫 Niebla HR+</button>
-            <button class="chip" data-climate="hot">🔥 Seco</button>
-            <button class="chip" data-climate="cold_rain">🌧 Lluvia Fría</button>
+      <!-- Fila central: Panel Izquierdo de Telemetría + Radar Minimapa Derecho -->
+      <div class="middle-hud-row">
+        <aside id="telemetryPanel" class="side-panel glass-panel">
+          <div class="panel-header">
+            <span>📡 Sensor &amp; Exploración</span>
+            <button id="btnTogglePlayMode" class="mini-btn highlight">Modo: Cosecha</button>
           </div>
 
-          <div id="sandboxControls" class="sandbox-box hidden">
-            <div class="section-caption">🧪 Inocular en Estación Actual:</div>
-            <div class="chip-row">
-              <button class="chip" data-infect="roya">Roya</button>
-              <button class="chip" data-infect="broca">Broca</button>
-              <button class="chip" data-infect="cercospora">Mancha Hierro</button>
-              <button class="chip" data-infect="antracnosis">Antracnosis</button>
-              <button class="chip emerald-chip" data-infect="healthy">Sanar</button>
+          <div class="sensor-grid">
+            <div class="sensor-box">
+              <small>Temp Ø12mm</small>
+              <strong id="uiTemp">21.0 °C</strong>
+            </div>
+            <div class="sensor-box">
+              <small>Humedad Ø12mm</small>
+              <strong id="uiHumidity">68 %</strong>
+            </div>
+            <div class="sensor-box">
+              <small>Distancia Objetivo</small>
+              <strong id="uiDistance">-- m</strong>
+            </div>
+            <div class="sensor-box">
+              <small>Zona Actual</small>
+              <strong id="uiZoneName">Sendero Central</strong>
             </div>
           </div>
+
+          <div class="diagnosis-card" id="uiDiagnosisCard">
+            <div class="diag-title" id="uiDiagTitle">Camina hacia una mata o mesa</div>
+            <p class="diag-desc" id="uiDiagDesc">
+              Usa <strong>WASD</strong> o el <strong>Joystick</strong> para caminar por los senderos y arrastra para mirar 360°. Acércate (&lt; 3m) para escanear con el lente Ø8mm.
+            </p>
+          </div>
+
+          <!-- Selector rápido de protocolo de tratamiento -->
+          <div class="protocol-section">
+            <div class="section-caption">Protocolo Fitosanitario (▲/▼ + ●):</div>
+            <div id="protocolList" class="protocol-list"></div>
+          </div>
+
+          <!-- Controles Clima & Laboratorio Libre -->
+          <div class="lab-section">
+            <div class="section-caption">Microclima del Entorno:</div>
+            <div class="chip-row">
+              <button class="chip active" data-climate="balanced">☀ Templado</button>
+              <button class="chip" data-climate="humid">🌫 Niebla HR+</button>
+              <button class="chip" data-climate="hot">🔥 Seco</button>
+              <button class="chip" data-climate="cold_rain">🌧 Lluvia Fría</button>
+            </div>
+
+            <div id="sandboxControls" class="sandbox-box hidden">
+              <div class="section-caption">🧪 Inocular en Estación Cercana:</div>
+              <div class="chip-row">
+                <button class="chip" data-infect="roya">Roya</button>
+                <button class="chip" data-infect="broca">Broca</button>
+                <button class="chip" data-infect="cercospora">Mancha Hierro</button>
+                <button class="chip" data-infect="antracnosis">Antracnosis</button>
+                <button class="chip emerald-chip" data-infect="healthy">Sanar</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Minimapa / Radar Fitosanitario Interactivo -->
+        <div class="radar-card glass-panel">
+          <div class="radar-header">
+            <span>🧭 Radar Finca (Clic = Ir)</span>
+            <small id="radarCoords">0, 0</small>
+          </div>
+          <canvas id="minimapCanvas" width="176" height="176"></canvas>
+          <div class="radar-legend">
+            <span><i class="dot sky-bg"></i>Sin escanear</span>
+            <span><i class="dot warn-bg"></i>Enfermo</span>
+            <span><i class="dot ok-bg"></i>Sano</span>
+          </div>
         </div>
-      </aside>
+      </div>
 
       <!-- Mensajes Toast / Notificaciones de Juego -->
       <div id="toastBanner" class="toast-banner hidden"></div>
@@ -153,7 +176,7 @@
           <div class="modal-badge">¡COSECHA PROTEGIDA!</div>
           <h2 id="waveModalTitle">Ronda #1 Completada</h2>
           <p id="waveModalSummary">
-            Todas las matas de café y muestras de grano están libres de patógenos y certificadas como Café Especial.
+            Recorriste el cafetal y erradicaste todos los focos fitosanitarios.
           </p>
           <div class="modal-actions">
             <button id="btnNextWave" class="primary-cta">Siguiente Ronda de Cosecha →</button>
@@ -166,7 +189,7 @@
         <div class="modal-card cad-modal-card glass-panel">
           <div class="modal-top">
             <div>
-              <div class="modal-badge">ESPECIFICACIONES DE HARDWARE</div>
+              <div class="modal-badge">ESPECIFICACIONES DE HARDWARE &amp; QUEST 3</div>
               <h2>Handheld Environmental Monitor · Cafecito</h2>
             </div>
             <button id="btnCloseCadModal" class="icon-btn">✕</button>
@@ -179,10 +202,9 @@
             />
             <div class="cad-specs-list">
               <p><strong>Dimensiones:</strong> 120 mm (Al) × 65 mm (An) × 18 mm (Prof) · Peso: 85 g</p>
-              <p><strong>Pantalla:</strong> IPS cuadrada 50 mm × 50 mm con visor óptico IA y telemetría</p>
-              <p><strong>Controles:</strong> 3× Botones frontales (▲ Arriba, ● Seleccionar, ▼ Abajo) + Botón Lateral</p>
+              <p><strong>Pantalla:</strong> IPS cuadrada 50 mm × 50 mm con visor IA, brújula de rastreo y telemetría</p>
               <p><strong>Sensores Traseros:</strong> Cámara superior Ø8 mm + Rejilla inferior T/HR Ø12 mm</p>
-              <p><strong>Material:</strong> Policarbonato Blanco Mate (Matte White Polycarbonate)</p>
+              <p><strong>Meta Quest 3:</strong> Usa <em>🥽 Quest 3 MR</em> para Passthrough a color o <em>🥽 Quest VR</em>. Stick Izq camina, Stick Der gira/navega menú, Gatillo Der escanea y Botón A/Grip aplica cura.</p>
               <div class="cad-modal-btns">
                 <button id="btnToggle3DCadLabels" class="pill-btn accent-mr">
                   📐 Alternar Cotas 3D sobre el Aparato
@@ -193,31 +215,43 @@
         </div>
       </div>
 
-      <!-- Dock Inferior: Estaciones Cafeteras + Controles Táctiles del Aparato -->
+      <!-- Dock Inferior: Joystick de Caminata + Controles Táctiles del Aparato -->
       <footer class="bottom-dock">
-        <div id="stationTabs" class="station-tabs glass-panel"></div>
+        <div class="walk-and-controls">
+          <!-- Joystick Virtual para caminar en móvil / pantalla táctil / mouse -->
+          <div id="joystickZone" class="joystick-zone glass-panel" title="Arrastra para caminar por el mapa (o usa WASD)">
+            <div class="joy-ring">
+              <div id="joystickKnob" class="joy-knob"></div>
+            </div>
+            <span class="joy-caption">WASD / Caminar</span>
+          </div>
 
-        <div class="device-controls-bar glass-panel">
-          <button id="btnScanHold" class="action-btn scan-cta" title="Mantén presionado o haz clic para escanear con la cámara Ø8mm (Espacio)">
-            🔍 Escáner Ø8mm
-          </button>
-          <button id="btnDevUp" class="hw-btn" title="Botón Arriba del Monitor (Flecha Arriba)">▲</button>
-          <button id="btnDevSelect" class="action-btn apply-cta" title="Botón Seleccionar / Aplicar Protocolo (Enter)">
-            ● Aplicar / OK
-          </button>
-          <button id="btnDevDown" class="hw-btn" title="Botón Abajo del Monitor (Flecha Abajo)">▼</button>
+          <div class="center-dock-stack">
+            <div class="walk-hint-pill glass-panel hide-xs">
+              🚶 <strong>WASD</strong> Caminar · <strong>Shift</strong> Correr · <strong>Arrastrar Mouse</strong> Mirar 360° · <strong>Q/E</strong> Girar · <strong>Clic en Radar</strong> Viaje rápido
+            </div>
 
-          <label class="dist-slider hide-xs" title="Acerca o aleja el monitor respecto a la mata">
-            <span>Zoom</span>
-            <input id="sliderDepth" type="range" min="12" max="42" value="25" />
-          </label>
+            <div class="device-controls-bar glass-panel">
+              <button id="btnScanHold" class="action-btn scan-cta" title="Mantén presionado para escanear con la cámara Ø8mm (Espacio)">
+                🔍 Escáner Ø8mm
+              </button>
+              <button id="btnDevUp" class="hw-btn" title="Botón Arriba del Monitor (Flecha Arriba)">▲</button>
+              <button id="btnDevSelect" class="action-btn apply-cta" title="Botón Seleccionar / Aplicar Protocolo (Enter)">
+                ● Aplicar / OK
+              </button>
+              <button id="btnDevDown" class="hw-btn" title="Botón Abajo del Monitor (Flecha Abajo)">▼</button>
 
-          <button id="btnFlipDevice" class="hw-btn wide" title="Girar el dispositivo 180° para ver la Cámara Ø8mm y Rejilla Ø12mm (Tecla F)">
-            🔄 Reverso
-          </button>
-          <button id="btnFanWind" class="hw-btn wide" title="Generar brisa humana para ventilar humedad y esporas (Tecla V)">
-            💨 Ventilar
-          </button>
+              <button id="btnNextNearest" class="hw-btn wide" title="Orientar vista hacia la mata pendiente más cercana (Tecla R)">
+                🧭 Buscar Mata
+              </button>
+              <button id="btnFlipDevice" class="hw-btn wide" title="Girar el dispositivo 180° para ver la Cámara Ø8mm y Rejilla Ø12mm (Tecla F)">
+                🔄 Reverso
+              </button>
+              <button id="btnFanWind" class="hw-btn wide hide-xs" title="Generar brisa humana para ventilar humedad y esporas (Tecla V)">
+                💨 Ventilar
+              </button>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

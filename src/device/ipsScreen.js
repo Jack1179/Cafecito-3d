@@ -345,15 +345,49 @@ export class IPSScreenRenderer {
     }
 
     // Etiquetas HUD dentro del visor óptico
+    const distFmt =
+      distanceCm >= 100 ? `${(distanceCm / 100).toFixed(1)}m` : `${Math.round(distanceCm)}cm`;
     ctx.fillStyle = 'rgba(6, 14, 23, 0.72)';
-    ctx.fillRect(vx + 10, vy + 10, 178, 26);
+    ctx.fillRect(vx + 10, vy + 10, 192, 26);
     ctx.fillStyle = isUV ? '#f0abfc' : '#7dd3fc';
     ctx.font = 'bold 13px ui-monospace, monospace';
     ctx.fillText(
-      isUV ? 'LENTE Ø8mm · FLUOR UV' : `LENTE Ø8mm · D:${Math.round(distanceCm)}cm`,
+      isUV ? 'LENTE Ø8mm · FLUOR UV' : `LENTE Ø8mm · D:${distFmt}`,
       vx + 16,
       vy + 28
     );
+
+    // Brújula de rastreo de campo hacia la siguiente mata pendiente
+    if (typeof state.compassAngle === 'number' && typeof state.compassDistM === 'number') {
+      const rx = vx + vw - 34;
+      const ry = vy + 34;
+      ctx.save();
+      ctx.translate(rx, ry);
+      ctx.fillStyle = 'rgba(6, 14, 23, 0.78)';
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.rotate(state.compassAngle);
+      ctx.fillStyle = '#34d399';
+      ctx.beginPath();
+      ctx.moveTo(0, -14);
+      ctx.lineTo(8, 10);
+      ctx.lineTo(0, 5);
+      ctx.lineTo(-8, 10);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      ctx.fillStyle = '#a7f3d0';
+      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${state.compassDistM.toFixed(1)}m`, rx, ry + 34);
+      ctx.textAlign = 'left';
+    }
 
     if (targetStation) {
       const dis = DISEASES[targetStation.diseaseId];
@@ -363,7 +397,7 @@ export class IPSScreenRenderer {
       ctx.font = 'bold 14px ui-monospace, monospace';
       const label = targetStation.scanned
         ? `IA: ${dis.shortName} (${Math.round(targetStation.health)}% vigor)`
-        : `OBJETIVO: ${targetStation.name.toUpperCase()}`;
+        : `EN MIRA: ${targetStation.name.toUpperCase()}`;
       ctx.fillText(label, vx + 18, vy + vh - 17);
     }
 
@@ -382,36 +416,40 @@ export class IPSScreenRenderer {
     // Mini lecturas del sensor Ø12mm
     ctx.fillStyle = '#94a3b8';
     ctx.font = '13px ui-monospace, monospace';
-    ctx.fillText(`SHT Ø12mm: ${liveTemp.toFixed(1)}°C  |  HR: ${Math.round(liveHumidity)}%`, 30, py + 24);
+    ctx.fillText(
+      `SHT Ø12mm: ${liveTemp.toFixed(1)}°C  |  HR: ${Math.round(liveHumidity)}%  |  BROTES: ${state.remainingSick ?? 0}`,
+      26,
+      py + 24
+    );
 
     if (!targetStation) {
       ctx.fillStyle = '#e2e8f0';
       ctx.font = 'bold 16px system-ui, sans-serif';
-      ctx.fillText('Apunta el lente trasero a una mata o grano', 30, py + 52);
+      ctx.fillText('Camina por el cafetal buscando matas o grano', 26, py + 52);
       ctx.fillStyle = '#38bdf8';
-      ctx.font = '14px system-ui, sans-serif';
-      ctx.fillText('Mantén presionado Botón Lateral o ● para diagnosticar', 30, py + 73);
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillText('Sigue la brújula verde (arriba der.) y acércate < 3m', 26, py + 73);
     } else if (!targetStation.scanned) {
       const pct = Math.round(scanProgress * 100);
       ctx.fillStyle = '#38bdf8';
       ctx.font = 'bold 17px system-ui, sans-serif';
       ctx.fillText(
-        isScanning ? `Analizando tejido vegetal... ${pct}%` : 'Objetivo en mira — Pulsa Escáner',
-        30,
+        isScanning ? `Analizando tejido vegetal... ${pct}%` : 'Objetivo a tiro — Pulsa Escáner',
+        26,
         py + 52
       );
       ctx.fillStyle = '#94a3b8';
       ctx.font = '13px system-ui, sans-serif';
-      ctx.fillText('Acerca a 12–35 cm o mantén pulsado el botón lateral', 30, py + 73);
+      ctx.fillText('Mantén Botón Lateral, Espacio o Gatillo Quest 3', 26, py + 73);
     } else {
       const dis = DISEASES[targetStation.diseaseId];
       ctx.fillStyle = dis.accentColor;
       ctx.font = 'bold 18px system-ui, sans-serif';
-      ctx.fillText(`${dis.name} [${dis.code}]`, 30, py + 51);
+      ctx.fillText(`${dis.name} [${dis.code}]`, 26, py + 51);
       ctx.fillStyle = '#cbd5e1';
       ctx.font = '13px system-ui, sans-serif';
       const rec = TREATMENTS.find((t) => t.id === dis.requiredTreatment);
-      ctx.fillText(`Acción: ${rec ? rec.name : dis.recommendation}`, 30, py + 73);
+      ctx.fillText(`Acción: ${rec ? rec.name : dis.recommendation}`, 26, py + 73);
     }
   }
 
