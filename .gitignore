@@ -1,0 +1,8 @@
+node_modules
+dist
+public/wasm
+.DS_Store
+*.local
+.vite
+.env
+.env.*
